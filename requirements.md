@@ -25,19 +25,20 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **CenterPoint LiDAR 공식 모델*
 - 데이터셋: **nuScenes** (10클래스, 6개 task group)
 - 원 모델: CenterPoint (Yin et al., CVPR 2021) VoxelNet 0.075 voxel 설정
 
-아래 수치는 제작 전 공식 저장소 소스/설정 파일 기준으로 재검증하여 반영한다.
+아래 수치는 공식 저장소 소스·설정·ONNX 그래프로 검증함 (2026-09-25, master 기준).
 
-| 단계 | 구성 | 주요 사양 (재검증 예정) |
+| 단계 | 구성 | 검증된 사양 |
 |---|---|---|
-| 입력 | nuScenes LiDAR 포인트 (여러 sweep 누적) | 점당 5채널: x, y, z, intensity, Δt |
-| 전처리 | GPU 복셀화 (CUDA 커널) | 범위 [-54, 54]×[-54, 54]×[-5, 3] m, 복셀 0.075×0.075×0.2 m → 격자 1440×1440×40(41), 복셀 내 점 평균 |
-| 백본 | 3D Sparse Convolution (`SpMiddleResNetFHD`) | libspconv, SubM conv + stride‑2 sparse conv로 ×8 다운샘플 |
-| 높이 압축 | Sparse → Dense, Z축을 채널로 펼침 | (C, D, H, W) → (C·D, H, W) ≈ 256×180×180 BEV |
-| 넥 | RPN (SECOND-FPN 스타일) 2D CNN | 다중 스케일 conv + deconv 후 concat |
-| 헤드 | CenterHead (6 task group) | heatmap + reg(2), height(1), dim(3), rot(2), vel(2) |
-| 후처리 | GPU 디코딩 + NMS | peak → 박스 복원, score threshold, NMS |
-| 출력 | 3D 박스 목록 | (x, y, z, w, l, h, yaw, vx, vy, score, class) |
-| 배포 | TensorRT FP16 / INT8 on AGX Orin | 단계별 latency |
+| 입력 | nuScenes LiDAR, 10 sweep 누적 | fp32 `[N, 5]` = x, y, z, intensity, time_lag (최대 300,000점) |
+| 전처리 | CUDA 커널 3개: 해시 생성 → 복셀화 → 특징 추출 | 범위 [-54,54]×[-54,54]×[-5,3] m, 복셀 0.075×0.075×0.2 m, 격자 1440×1440×40 (spconv shape [41,1440,1440]), 복셀당 최대 10점, 최대 160,000 복셀, **점 평균**(학습 없음) → fp16 `[V,5]` + int32 `[V,4]`(b,z,y,x) |
+| 3D 백본 | `SpMiddleResNetFHD`, libspconv (sm_87) | conv_input 5→16 → conv1 16 [41,1440,1440] → conv2 32 [21,720,720] → conv3 64 [11,360,360] → conv4 128 [5,180,180] → extra_conv 128 [2,180,180]; SparseConv 21개, 잔차 Add 8개 |
+| 높이 압축 | ScatterDense + Reshape | `[1,128,2,180,180]` → `[1,256,180,180]` (TensorRT 엔진 입력) |
+| Neck | RPN, layer_nums [5,5] | 블록0: 256→128, 180²(+1×1 conv→256) / 블록1: 128→256 s2, 90²(+deconv→256, 180²) → concat `[1,512,180,180]` |
+| Head | CenterHead: shared conv 512→64, 6 task | car / truck·construction_vehicle / bus·trailer / barrier / motorcycle·bicycle / pedestrian·traffic_cone. 각 task: reg 2, height 1, dim 3(log), rot 2(sin,cos), vel 2, hm 1~2 → 출력 36개, 각 `[1,C,180,180]` fp16 |
+| 후처리 | CUDA decode + 호스트 정렬 + CUDA rotated NMS | score>0.1, `x=(col+reg0)·8·0.075−54`, dim=exp, yaw=atan2(sin,cos), task당 최대 1000 후보 → NMS IoU 0.2 → task당 최대 83개 (max-pool peak 추출 없음) |
+| 출력 | 박스 목록 | 11 float: x, y, z, w, l, h, vx, vy, yaw, label, score |
+| 학습 | 원 CenterPoint | Focal loss(α=2, β=4) + L1 회귀(속도 가중치 0.2), loc 가중치 0.25, 가우시안 반지름(overlap 0.1, min 2) |
+| 배포 | Orin, TensorRT 8.4, FP16 (INT8은 QAT 경로) | Orin 지연: 복셀화 1.36 / 백본 22.3 / RPN+Head 11.3(INT8 7.0) / 디코드+NMS 4.4 ms, 합계 ≈ 40 ms (23 FPS). 정확도 57.57 mAP / 65.64 NDS (PyTorch 59.55/66.75, 차이는 CUDA NMS 때문) |
 
 ## 4. 콘텐츠 요구사항
 
@@ -69,7 +70,7 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **CenterPoint LiDAR 공식 모델*
 | 15 | 회귀 헤드의 의미 | offset, z, log-dim, sin/cos yaw, velocity — 왜 이렇게 인코딩? |
 | 16 | 학습 ① 정답 만들기 | 가우시안 반지름, heatmap 타깃 생성 |
 | 17 | 학습 ② Loss | Focal loss(왜 필요한가), L1 회귀 loss, 가중치 |
-| 18 | 후처리 | peak 찾기, 디코딩 수식(격자→미터), NMS |
+| 18 | 후처리 | 후보 선택(원 논문 max-pool vs CUDA 구현 threshold), 디코딩 수식(격자→미터), rotated NMS |
 | 19 | Orin 배포 ① 개념 | ONNX → TensorRT, FP16/INT8 양자화가 무엇이고 왜 빠른가 |
 | 20 | Orin 배포 ② 실무 | CUDA-CenterPoint 구조(전처리 커널 / libspconv / TRT 엔진 / 후처리 커널), 엔진 빌드, 단계별 latency, 메모리 |
 | 21 | 정리 | 한 장 요약 + 용어집 |
