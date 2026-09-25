@@ -11,3 +11,15 @@ LiDAR 포인트 클라우드를 입력받아 3D 바운딩 박스를 출력하기
 
 - `index.html` — 웹 슬라이드
 - `requirements.md` — 요구사항 정의서
+
+## 수정 방법
+
+슬라이드는 `src/`의 세 파일로 나뉘어 있고, 빌드하면 `index.html`이 만들어집니다.
+
+- `src/head.html` — 스타일
+- `src/body.html` — 슬라이드 내용 (22장, 각 장의 자습 노트 포함)
+- `src/script.html` — 슬라이드 엔진과 애니메이션
+
+```sh
+src/build.sh
+```
