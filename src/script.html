@@ -1,0 +1,1220 @@
+<script>
+(function(){
+"use strict";
+/* ============================================================
+   helpers
+   ============================================================ */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NS = 'http://www.w3.org/2000/svg';
+function S(tag, attrs, parent, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r){ let u = 0, v = 0; while(!u) u = r(); while(!v) v = r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function prep(c){
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return null;
+  const d = 2;
+  if (c.width !== w*d || c.height !== h*d){ c.width = w*d; c.height = h*d; }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.clearRect(0,0,w,h);
+  return {ctx, w, h};
+}
+function hexA(hex, a){
+  hex = hex.replace('#','');
+  if (hex.length === 3) hex = hex.split('').map(x=>x+x).join('');
+  const n = parseInt(hex,16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+function lerpHex(a, b, t){
+  const pa = parseInt(a.slice(1),16), pb = parseInt(b.slice(1),16);
+  const r = Math.round((pa>>16&255)*(1-t)+(pb>>16&255)*t), g = Math.round((pa>>8&255)*(1-t)+(pb>>8&255)*t), bl = Math.round((pa&255)*(1-t)+(pb&255)*t);
+  return `rgb(${r},${g},${bl})`;
+}
+function zColor(z){ // -2 .. 2 m
+  const t = Math.max(0, Math.min(1, (z + 1.9) / 3.2));
+  return t < .5 ? lerpHex('#3b6fd0','#2bb3a8', t*2) : lerpHex('#2bb3a8','#f0a040', (t-.5)*2);
+}
+function corners(o){
+  const c = Math.cos(o.yaw||0), s = Math.sin(o.yaw||0), L = o.l/2, W = o.w/2;
+  return [[L,W],[-L,W],[-L,-W],[L,-W]].map(([a,b]) => [o.x + a*c - b*s, o.y + a*s + b*c]);
+}
+
+/* ============================================================
+   virtual scene (for illustration only)
+   ============================================================ */
+const G = -1.8; // ground height relative to sensor
+const OBJS = [
+  {x:12.22, y:3.37, yaw:0.524, w:1.94, l:4.62, h:1.54, cls:'승용차', task:0, v:[3.2,0.4]},
+  {x:-8, y:6.5, yaw:0, w:1.9, l:4.5, h:1.5, cls:'승용차', task:0, v:[0,0]},
+  {x:20, y:-9, yaw:1.57, w:2.0, l:4.8, h:1.6, cls:'승용차', task:0, v:[0,-5]},
+  {x:-16, y:-4, yaw:0.1, w:1.8, l:4.3, h:1.5, cls:'승용차', task:0, v:[6,0.6]},
+  {x:-30, y:-12, yaw:0.05, w:1.9, l:4.6, h:1.5, cls:'승용차', task:0, v:[0,0]},
+  {x:33, y:8, yaw:-0.3, w:1.9, l:4.5, h:1.5, cls:'승용차', task:0, v:[-7,2]},
+  {x:6, y:-19, yaw:0, w:2.9, l:11, h:3.2, cls:'버스', task:2, v:[4,0]},
+  {x:-25, y:16, yaw:0.2, w:2.5, l:7, h:3, cls:'트럭', task:1, v:[0,0]},
+  {x:6, y:9, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[0,1.2]},
+  {x:7.2, y:10, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[0,1.1]},
+  {x:-4, y:-9.5, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[1,0]},
+  {x:3, y:-5, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:3.6, y:-6.2, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:4.2, y:-7.4, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:-12, y:12, yaw:0.3, w:0.6, l:1.8, h:1.4, cls:'자전거', task:4, v:[2,0.6]},
+  ...[0,1,2,3,4].map(i => ({x:-2+i*2.2, y:14, yaw:0, w:0.5, l:2, h:1, cls:'방호벽', task:3, v:[0,0]}))
+];
+const POINTS = (function(){
+  const r = rng(7), pts = [];
+  for (let i = 0; i < 34; i++){
+    const rad = 2.4 * Math.pow(1.1, i);
+    if (rad > 54) break;
+    const n = 1100;
+    for (let k = 0; k < n; k++){
+      if (r() < .45) continue;
+      const a = (k / n) * Math.PI * 2 + r()*0.002;
+      const x = rad*Math.cos(a), y = rad*Math.sin(a);
+      if (Math.abs(y) > 24) continue;
+      pts.push([x, y, G + gauss(r)*0.04, 1]);
+    }
+  }
+  // building walls at |y| = 24
+  for (const wy of [24, -24]){
+    for (let x = -50; x < 50; x += 0.18){
+      const d = Math.hypot(x, wy);
+      if (r() > 30/d) continue;
+      for (let z = G; z < G + 5; z += 0.35 + r()*0.2) pts.push([x + gauss(r)*0.03, wy + gauss(r)*0.05, z, 2]);
+    }
+  }
+  // poles / trees
+  for (const [px,py] of [[-20,21],[0,21.5],[18,-21],[28,20],[-38,-21],[40,-20]]){
+    for (let k = 0; k < 60; k++) pts.push([px + gauss(r)*0.6, py + gauss(r)*0.6, G + 1.5 + r()*3, 2]);
+  }
+  // objects: visible faces only
+  for (const o of OBJS){
+    const dist = Math.hypot(o.x, o.y);
+    const n = Math.max(10, Math.min(420, 2600/(dist+2) * Math.sqrt((o.l*o.w)/8 + .15)));
+    const c = Math.cos(o.yaw), s = Math.sin(o.yaw);
+    const edges = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
+    const lens = edges.map(e => Math.hypot(e[1][0]-e[0][0], e[1][1]-e[0][1]));
+    const tot = lens.reduce((a,b)=>a+b,0);
+    let made = 0, guard = 0;
+    while (made < n && guard++ < n*6){
+      let t = r()*tot, ei = 0;
+      while (t > lens[ei]) { t -= lens[ei]; ei++; }
+      const e = edges[ei], f = t / lens[ei];
+      const lx = e[0][0] + (e[1][0]-e[0][0])*f, ly = e[0][1] + (e[1][1]-e[0][1])*f;
+      const wx = o.x + lx*c - ly*s, wy = o.y + lx*s + ly*c;
+      const nx = e[2][0]*c - e[2][1]*s, ny = e[2][0]*s + e[2][1]*c;
+      if (nx*wx + ny*wy > 0) continue;
+      pts.push([wx + gauss(r)*0.02, wy + gauss(r)*0.02, G + r()*o.h, 3]);
+      made++;
+    }
+  }
+  return pts;
+})();
+
+function drawCloud(ctx, w, h, R, opts={}){
+  const sc = Math.min(w, h) / (2*R), cx = w/2, cy = h/2;
+  ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+  for (const p of POINTS){
+    const X = cx + p[0]*sc, Y = cy - p[1]*sc;
+    if (X < 0 || Y < 0 || X > w || Y > h) continue;
+    ctx.globalAlpha = p[3] === 1 ? .38 : .95;
+    ctx.fillStyle = zColor(p[2]);
+    const s = p[3] === 3 ? 2.4 : 1.2;
+    ctx.fillRect(X - s/2, Y - s/2, s, s);
+  }
+  ctx.globalAlpha = 1;
+  // ego
+  ctx.fillStyle = tok('--ink');
+  ctx.beginPath(); ctx.moveTo(cx+7, cy); ctx.lineTo(cx-5, cy-5); ctx.lineTo(cx-5, cy+5); ctx.closePath(); ctx.fill();
+  return {sc, cx, cy};
+}
+function strokeBox(ctx, o, m, color, lw=1.5, heading=true){
+  const cs = corners(o).map(([x,y]) => [m.cx + x*m.sc, m.cy - y*m.sc]);
+  ctx.strokeStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); cs.forEach((p,i) => i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.stroke();
+  if (heading){
+    ctx.beginPath(); ctx.moveTo((cs[0][0]+cs[3][0])/2, (cs[0][1]+cs[3][1])/2); ctx.lineTo(m.cx + o.x*m.sc, m.cy - o.y*m.sc); ctx.stroke();
+  }
+}
+
+/* ============================================================
+   slide engine
+   ============================================================ */
+const slides = $$('.slide');
+const STAGES = [['input','입력'],['voxel','복셀화'],['sparse','3D Sparse 백본'],['bev','BEV'],['neck','Neck'],['head','Head'],['train','학습'],['post','후처리'],['deploy','Orin 배포']];
+const hooks = {};
+const inited = new Set();
+let cur = 0, step = 0;
+
+const pmap = $('#pmap');
+STAGES.forEach(([k,l]) => { const s = document.createElement('span'); s.dataset.k = k; s.textContent = l; pmap.appendChild(s); });
+
+const tocList = $('#toc-list');
+slides.forEach((s,i) => {
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button';
+  b.innerHTML = `<span>${i+1}</span>${s.dataset.title}`;
+  b.addEventListener('click', () => { go(i, 0); togglePanel('toc', false); });
+  li.appendChild(b); tocList.appendChild(li);
+});
+
+function nSteps(i){ return +slides[i].dataset.steps || 1; }
+function applyStep(){
+  const s = slides[cur];
+  $$('.frag', s).forEach(f => {
+    const a = +f.dataset.s, u = f.dataset.u;
+    f.classList.toggle('on', step >= a && (u === undefined || step < +u));
+  });
+  const h = hooks[s.id];
+  if (h && h.step) h.step(step);
+  updateUI();
+}
+function go(i, k){
+  if (i !== cur){
+    const h = hooks[slides[cur].id]; if (h && h.leave) h.leave();
+    slides[cur].classList.remove('active');
+    cur = i;
+  }
+  slides[cur].classList.add('active');
+  const id = slides[cur].id;
+  if (!inited.has(id)){ inited.add(id); const h = hooks[id]; if (h && h.init) h.init(); }
+  step = Math.max(0, Math.min(k, nSteps(cur)-1));
+  applyStep();
+  try { history.replaceState(null, '', '#' + id); } catch(e) {}
+}
+function next(){ if (step < nSteps(cur)-1){ step++; applyStep(); } else if (cur < slides.length-1) go(cur+1, 0); }
+function prev(){ if (step > 0){ step--; applyStep(); } else if (cur > 0) go(cur-1, nSteps(cur-1)-1); }
+
+function updateUI(){
+  const s = slides[cur], st = s.dataset.stage;
+  const idx = STAGES.findIndex(x => x[0] === st);
+  $$('span', pmap).forEach((e,i) => { e.classList.toggle('here', i === idx); e.classList.toggle('done', idx >= 0 && i < idx); });
+  const here = $('span.here', pmap); if (here) here.scrollIntoView({block:'nearest', inline:'nearest'});
+  $('#counter').textContent = `${cur+1} / ${slides.length}`;
+  const dots = $('#dots'); dots.innerHTML = '';
+  for (let i = 0; i < nSteps(cur); i++){ const d = document.createElement('i'); if (i <= step) d.className = 'on'; dots.appendChild(d); }
+  $('#progbar').style.width = ((cur + (step+1)/nSteps(cur)) / slides.length * 100) + '%';
+  const n = $('.notes', s);
+  $('#notes-body').innerHTML = `<h3 style="margin-top:6px">${cur+1}. ${s.dataset.title}</h3>` + (n ? n.innerHTML : '<p class="muted">이 슬라이드에는 노트가 없습니다.</p>');
+  $$('#toc-list button').forEach((b,i) => b.classList.toggle('cur', i === cur));
+}
+function togglePanel(id, force){
+  const p = $('#'+id); const open = force === undefined ? !p.classList.contains('open') : force;
+  p.classList.toggle('open', open);
+  if (open){ const other = id === 'notes' ? 'toc' : 'notes'; $('#'+other).classList.remove('open'); }
+}
+
+$('#next').addEventListener('click', e => { e.stopPropagation(); next(); });
+$('#prev').addEventListener('click', e => { e.stopPropagation(); prev(); });
+$('#notes-btn').addEventListener('click', () => togglePanel('notes'));
+$('#toc-btn').addEventListener('click', () => togglePanel('toc'));
+$('#notes-close').addEventListener('click', () => togglePanel('notes', false));
+$('#toc-close').addEventListener('click', () => togglePanel('toc', false));
+$('#stage').addEventListener('click', e => {
+  if (e.target.closest('button, a, input, select, .panel, table, .btnrow')) return;
+  if (window.getSelection && String(window.getSelection())) return;
+  next();
+});
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === 'ArrowRight' || k === ' ' || k === 'PageDown' || k === 'Enter'){ if (k === 'Enter' && e.target.closest('button')) return; e.preventDefault(); next(); }
+  else if (k === 'ArrowLeft' || k === 'PageUp'){ e.preventDefault(); prev(); }
+  else if (k === 'Home'){ go(0,0); }
+  else if (k === 'End'){ go(slides.length-1, 0); }
+  else if (k === 'n' || k === 'N'){ togglePanel('notes'); }
+  else if (k === 't' || k === 'T'){ togglePanel('toc'); }
+  else if (k === 'Escape'){ togglePanel('notes', false); togglePanel('toc', false); }
+});
+
+// theme
+$('#themebtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('cp-theme', root.dataset.theme); } catch(e) {}
+  redraw();
+});
+try { const t = localStorage.getItem('cp-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => redraw());
+function redraw(){ const h = hooks[slides[cur].id]; if (h && h.step) h.step(step); }
+
+// scaling
+const stage = $('#stage'), vp = $('#viewport');
+function fit(){
+  const flow = window.innerWidth < 760;
+  document.body.classList.toggle('flow', flow);
+  if (flow){ stage.style.transform = ''; stage.style.position = ''; stage.style.left = ''; stage.style.top = ''; }
+  else {
+    const r = vp.getBoundingClientRect();
+    const s = Math.min((r.width - 8) / 1280, (r.height - 16) / 720);
+    stage.style.position = 'absolute'; stage.style.left = '50%'; stage.style.top = '50%';
+    stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+  }
+  redraw();
+}
+window.addEventListener('resize', fit);
+
+/* ============================================================
+   S1 title: rotating LiDAR scan
+   ============================================================ */
+hooks.s1 = (function(){
+  let raf = 0, t0 = 0;
+  function frame(t){
+    const c = $('#cv-title'), P = prep(c); if (!P) return;
+    const {ctx, w, h} = P;
+    const R = 34, sc = Math.min(w, h) / (2*R) * 1.05, cx = w*0.55, cy = h/2;
+    const ang = reduced ? null : ((t - t0) / 2600) * Math.PI * 2;
+    ctx.fillStyle = tok('--panel'); ctx.fillRect(0,0,w,h);
+    for (const p of POINTS){
+      const X = cx + p[0]*sc, Y = cy - p[1]*sc;
+      if (X < 0 || Y < 0 || X > w || Y > h) continue;
+      let a = 1;
+      if (ang !== null){
+        let d = (ang - Math.atan2(p[1], p[0])) % (Math.PI*2); if (d < 0) d += Math.PI*2;
+        a = Math.max(.12, 1 - d / (Math.PI*2));
+      }
+      ctx.globalAlpha = a * (p[3] === 1 ? .55 : .95);
+      ctx.fillStyle = zColor(p[2]);
+      ctx.fillRect(X-.8, Y-.8, 1.6, 1.6);
+    }
+    ctx.globalAlpha = 1;
+    if (ang !== null){
+      ctx.strokeStyle = hexA(tok('--heat'), .5); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang)*w, cy - Math.sin(ang)*w); ctx.stroke();
+    }
+    ctx.fillStyle = tok('--ink');
+    ctx.beginPath(); ctx.moveTo(cx+8, cy); ctx.lineTo(cx-6, cy-6); ctx.lineTo(cx-6, cy+6); ctx.closePath(); ctx.fill();
+    // fade toward text side
+    const g = ctx.createLinearGradient(0,0,w*0.45,0);
+    g.addColorStop(0, tok('--panel')); g.addColorStop(1, hexA(tok('--panel').startsWith('#') ? tok('--panel') : '#ffffff', 0));
+    ctx.fillStyle = g; ctx.fillRect(0,0,w*0.45,h);
+    if (!reduced && slides[cur].id === 's1') raf = requestAnimationFrame(frame);
+  }
+  return {
+    step(){ cancelAnimationFrame(raf); t0 = performance.now(); raf = requestAnimationFrame(frame); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S2 problem: static cloud + boxes
+   ============================================================ */
+hooks.s2 = {
+  step(k){
+    const P = prep($('#cv-s2')); if (!P) return;
+    const {ctx, w, h} = P;
+    const m = drawCloud(ctx, w, h, 36);
+    if (k >= 1){
+      ctx.font = '600 12px ' + tok('--sans');
+      ctx.setLineDash([4,4]); ctx.strokeStyle = tok('--muted'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(m.cx, m.cy, 8*m.sc, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.cx, m.cy, 30*m.sc, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = tok('--ink');
+      ctx.fillText('가까움: 점이 빽빽', m.cx + 8*m.sc*0.72 + 4, m.cy - 8*m.sc*0.72);
+      ctx.fillText('멂: 점이 듬성듬성', m.cx + 30*m.sc*0.72 + 4, m.cy - 30*m.sc*0.72 + 14);
+    }
+    if (k >= 2){
+      for (const o of OBJS) strokeBox(ctx, o, m, tok('--ink'), 1.4);
+    }
+    if (k >= 3){
+      ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
+      const seen = new Set();
+      for (const o of OBJS){
+        if (o.cls === '방호벽' && seen.has('방호벽')) continue;
+        if (o.cls === '콘' && seen.has('콘')) continue;
+        seen.add(o.cls);
+        const X = m.cx + o.x*m.sc, Y = m.cy - o.y*m.sc;
+        if (X < 10 || X > w-40 || Y < 10 || Y > h-10) continue;
+        ctx.fillText(o.cls, X + 8, Y - Math.max(o.w,o.l)*m.sc/2 - 3);
+      }
+    }
+  }
+};
+
+/* ============================================================
+   S4 pipeline map
+   ============================================================ */
+hooks.s4 = {
+  init(){
+    const g = $('#s4nodes'), b = $('#s4bands');
+    const N = [
+      ['점 구름','[N, 5]','센서가 본 세상 그대로'],
+      ['복셀화','[V,5] + [V,4]','점을 격자 칸에 정리'],
+      ['3D Sparse 백본','[128,2,180,180]','빈칸 빼고 3D 모양 이해'],
+      ['BEV 변환','[256,180,180]','위에서 본 지도로 펴기'],
+      ['Neck','[512,180,180]','작은·큰 물체 문맥 결합'],
+      ['CenterHead','6 × [C,180,180]','칸마다 중심·속성 예측'],
+      ['디코드 + NMS','[K, 11]','박스로 복원, 중복 제거']
+    ];
+    N.forEach((n,i) => {
+      const x = 5 + i*172, grp = S('g', {class:'frag', 'data-s': i+1}, g);
+      S('rect', {x, y:20, width:150, height:128, rx:5, class: i===5 ? 'f-heat-s s-heat' : 'f-bg s-line', 'stroke-width':1.5}, grp);
+      S('text', {x:x+12, y:44, style:'font-size:11px', class:'mono mut'}, grp, '0' + (i+1));
+      S('text', {x:x+12, y:68, style:'font-weight:700;font-size:15px'}, grp, n[0]);
+      S('text', {x:x+12, y:92, class:'mono violet', style:'font-size:11.5px'}, grp, n[1]);
+      S('text', {x:x+12, y:128, style:'font-size:12.5px'}, grp, n[2]);
+      if (i < 6) S('path', {d:`M${x+151} 84H${x+170}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, grp);
+    });
+    const B = [
+      [0,0,'CPU · 입력','f-panel2','mut',''],
+      [1,1,'CUDA 커널','f-teal-s','teal','1.36 ms'],
+      [2,3,'libspconv','f-violet-s','violet','22.3 ms'],
+      [4,5,'TensorRT','f-heat-s','heat','11.3 ms'],
+      [6,6,'CUDA + CPU','f-teal-s','teal','4.4 ms']
+    ];
+    B.forEach(([a,z,l,f,tc,ms]) => {
+      const x = 5 + a*172, wd = (z-a)*172 + 150;
+      S('rect', {x, y:170, width:wd, height:34, rx:4, class:f}, b);
+      S('text', {x:x+10, y:192, class:tc, style:'font-weight:600'}, b, l);
+      if (ms) S('text', {x:x+wd-10, y:192, class:'mono ' + tc, 'text-anchor':'end'}, b, ms);
+    });
+    S('text', {x:5, y:236, class:'mut', style:'font-size:12px'}, b, 'Orin 평균 지연 합계 ≈ 40 ms (≈ 23~25 FPS) · 3D 백본이 절반 이상');
+  }
+};
+
+/* ============================================================
+   S5 multi-sweep
+   ============================================================ */
+hooks.s5 = (function(){
+  let raf = 0, anim0 = 0;
+  const r = rng(11), sweeps = [];
+  const sensor = [0, -9];
+  function carPts(cx, cy, n, rr){
+    const o = {x:cx, y:cy, yaw:0, w:1.9, l:4.5}, out = [];
+    const edges = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
+    let made = 0, guard = 0;
+    while (made < n && guard++ < n*8){
+      const e = edges[Math.floor(rr()*4)], f = rr();
+      const x = o.x + e[0][0] + (e[1][0]-e[0][0])*f, y = o.y + e[0][1] + (e[1][1]-e[0][1])*f;
+      if (e[2][0]*(x - sensor[0]) + e[2][1]*(y - sensor[1]) > 0) continue;
+      out.push([x + gauss(rr)*0.03, y + gauss(rr)*0.03]); made++;
+    }
+    return out;
+  }
+  for (let s = 0; s < 10; s++){
+    const dt = s * 0.05;
+    const pts = [];
+    carPts(1.5 - 8*dt, 0, 34, r).forEach(p => pts.push(p));
+    carPts(-3.5, 5.5, 22, r).forEach(p => pts.push(p));
+    for (let k = 0; k < 90; k++){ const x = -9 + r()*18, y = -2.5 + r()*12; if (Math.abs(y) < 1.3 && x > -4 && x < 4.5) continue; if (r() < .5) pts.push([x, y]); }
+    sweeps.push({dt, pts});
+  }
+  function draw(k, t){
+    const P = prep($('#cv-s5')); if (!P) return;
+    const {ctx, w, h} = P;
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    const sc = Math.min(w/20, h/15), cx = w/2, cy = h*0.62;
+    const heat = tok('--heat'), vio = tok('--violet');
+    let show = k >= 4 ? 10 : 1;
+    if (k === 4 && !reduced){ show = Math.min(10, 1 + Math.floor((t - anim0) / 140)); }
+    for (let s = show-1; s >= 0; s--){
+      const sw = sweeps[s];
+      ctx.fillStyle = s === 0 ? heat : lerpHex(heat.startsWith('#')?heat:'#f2a24a', vio.startsWith('#')?vio:'#9a96fa', Math.min(1, .35 + s/9*.65));
+      ctx.globalAlpha = s === 0 ? 1 : .85;
+      for (const p of sw.pts){ ctx.beginPath(); ctx.arc(cx + p[0]*sc, cy - p[1]*sc, 2.1, 0, Math.PI*2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
+    ctx.fillText('움직이는 차 (8 m/s →)', cx + 1.5*sc - 60, cy + 1.9*sc);
+    ctx.fillText('서 있는 차', cx - 3.5*sc - 28, cy - 5.5*sc - 1.6*sc);
+    if (k >= 5){
+      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(cx - 2.2*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc, cy + 1.35*sc); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 3.7*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc - 5); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc + 5); ctx.closePath(); ctx.fillStyle = tok('--ink'); ctx.fill();
+      ctx.fillText('꼬리 길이 ≈ 속도 × 0.45 s', cx - 2.2*sc, cy + 2.6*sc);
+    }
+    ctx.fillStyle = tok('--muted');
+    ctx.fillText(k >= 4 ? '10 sweep 누적 (≈ 0.5 s)' : '1 sweep (현재)', 12, 20);
+    if (k === 4 && show < 10 && !reduced) raf = requestAnimationFrame(tt => draw(k, tt));
+  }
+  return {
+    step(k){ cancelAnimationFrame(raf); anim0 = performance.now(); draw(k, anim0); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S6 voxel grid
+   ============================================================ */
+hooks.s6 = {
+  init(){
+    const g = $('#s6grid'), pg = $('#s6pts');
+    for (let i = 0; i <= 10; i++) S('path', {d:`M${60+i*56} 30V422`, class:'s-grid', 'stroke-width':1}, g);
+    for (let j = 0; j <= 7; j++) S('path', {d:`M60 ${30+j*56}H620`, class:'s-grid', 'stroke-width':1}, g);
+    for (let i = 0; i < 10; i++) S('text', {x:60+i*56+28, y:440, class:'mono mut', 'text-anchor':'middle'}, g, String(880+i));
+    for (let r = 0; r < 7; r++) S('text', {x:52, y:30+r*56+32, class:'mono mut', 'text-anchor':'end'}, g, String(680-r));
+    S('text', {x:6, y:250, class:'mut', style:'font-size:12px', transform:'rotate(-90 14 250)'}, g, 'iy');
+    const r = rng(5);
+    for (let k = 0; k < 34; k++){
+      const x = 64 + r()*552, y = 34 + r()*384;
+      if (x > 280 && x < 344 && y > 194 && y < 258) continue;
+      S('circle', {cx:x, cy:y, r:3.5, class:'f-teal', opacity:.8}, pg);
+    }
+    for (const [x,y] of [[291.5,220.4],[328.8,205.5],[306.4,235.3]]) S('circle', {cx:x, cy:y, r:4, class:'f-teal'}, pg);
+  }
+};
+
+/* ============================================================
+   S7 sparsity canvas
+   ============================================================ */
+hooks.s7 = {
+  step(k){
+    if (k < 6) return;
+    const P = prep($('#cv-s7')); if (!P) return;
+    const {ctx, w, h} = P;
+    const cols = 40, rows = 25, cw = w/cols, ch = h/rows;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++){
+      ctx.fillStyle = (x === 27 && y === 9) ? tok('--heat') : tok('--line');
+      ctx.fillRect(x*cw + .6, y*ch + .6, cw - 1.2, ch - 1.2);
+    }
+    ctx.fillStyle = hexA(tok('--heat').startsWith('#') ? tok('--heat') : '#c0650f', .45);
+    ctx.fillRect(12*cw + .6, 18*ch + .6, (cw - 1.2)*.3, ch - 1.2);
+  }
+};
+
+/* ============================================================
+   S8 dense vs sparse vs SubM
+   ============================================================ */
+hooks.s8 = (function(){
+  const N = 12, C = 40, O = 20;
+  const A = [[2,2],[3,2],[4,2],[2,3],[2,4],[7,5],[8,5],[8,6],[9,6],[5,9],[6,9],[10,10],[1,8],[9,1]];
+  const key = (x,y) => x + ',' + y;
+  const Aset = new Set(A.map(p => key(...p)));
+  function dilate(set, r){
+    const out = new Set();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+      let hit = false;
+      for (let dy = -r; dy <= r && !hit; dy++) for (let dx = -r; dx <= r && !hit; dx++) if (set.has(key(x+dx, y+dy))) hit = true;
+      if (hit) out.add(key(x,y));
+    }
+    return out;
+  }
+  const D1 = dilate(Aset, 1), D2 = dilate(Aset, 2);
+  const coarse = new Set();
+  for (let oy = 0; oy < N/2; oy++) for (let ox = 0; ox < N/2; ox++){
+    let hit = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (Aset.has(key(2*ox+dx, 2*oy+dy))) hit = true;
+    if (hit) coarse.add(key(ox,oy));
+  }
+  let timer = 0, svg, gOut, gIn, gK, gGrid;
+  function build(){
+    svg = $('#s8svg'); svg.innerHTML = '';
+    gOut = S('g', {}, svg); gIn = S('g', {}, svg); gGrid = S('g', {}, svg); gK = S('g', {}, svg);
+  }
+  function grid(fine){
+    gGrid.innerHTML = '';
+    for (let i = 0; i <= N; i++){
+      S('path', {d:`M${O+i*C} ${O}V${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
+      S('path', {d:`M${O} ${O+i*C}H${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
+    }
+  }
+  function cells(g, set, cls, pad, op){
+    g.innerHTML = '';
+    for (const k of set){ const [x,y] = k.split(',').map(Number); S('rect', {x:O+x*C+pad, y:O+y*C+pad, width:C-2*pad, height:C-2*pad, rx:3, class:cls, opacity:op}, g); }
+  }
+  function kernelLoop(list, cellSize, span){
+    clearInterval(timer); gK.innerHTML = '';
+    if (!list.length) return;
+    const r = S('rect', {width:span*cellSize, height:span*cellSize, class:'f-none s-ink', 'stroke-width':2.5, rx:3}, gK);
+    let i = 0;
+    const place = () => { const [x,y] = list[i % list.length]; r.setAttribute('x', O + x*cellSize - (span-1)/2*C); r.setAttribute('y', O + y*cellSize - (span-1)/2*C); i++; };
+    place();
+    if (!reduced) timer = setInterval(place, list.length > 60 ? 70 : 260);
+  }
+  const all = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) all.push(key(x,y));
+  const toList = set => [...set].map(k => k.split(',').map(Number)).sort((a,b) => a[1]-b[1] || a[0]-b[0]);
+  return {
+    init: build,
+    step(k){
+      if (!svg) build();
+      const mode = $('#s8mode'), cnt = $('#s8count');
+      const inputOp = k >= 1 ? .9 : 1;
+      if (k <= 4 || k === 0){
+        grid(true);
+        cells(gIn, Aset, 'f-teal', 8, inputOp);
+      }
+      if (k === 0){ gOut.innerHTML = ''; clearInterval(timer); gK.innerHTML = ''; mode.textContent = '입력: 활성 칸 ' + Aset.size + ' / 144'; cnt.textContent = '활성 비율 ' + Math.round(Aset.size/144*100) + '%'; return; }
+      if (k === 1){ cells(gOut, new Set(all), 'f-heat', 1, .28); kernelLoop(toList(new Set(all)), C, 3); mode.textContent = 'Dense conv'; cnt.textContent = '계산 위치 144 / 144 · 출력 전부 채워짐'; }
+      if (k === 2){ cells(gOut, D1, 'f-heat', 1, .4); kernelLoop(toList(D1), C, 3); mode.textContent = 'Sparse conv (1층)'; cnt.textContent = `계산 위치 ${D1.size} · 활성 ${Aset.size} → ${D1.size}`; }
+      if (k === 3){ cells(gOut, D2, 'f-heat', 1, .4); kernelLoop(toList(D2), C, 3); mode.textContent = 'Sparse conv (2층)'; cnt.textContent = `활성 ${Aset.size} → ${D1.size} → ${D2.size} (번짐 누적)`; }
+      if (k === 4){ cells(gOut, Aset, 'f-heat', 1, .55); kernelLoop(toList(Aset), C, 3); mode.textContent = 'SubM conv'; cnt.textContent = `계산 위치 ${Aset.size} · 몇 층을 쌓아도 ${Aset.size}`; }
+      if (k >= 5){
+        grid(false);
+        cells(gIn, Aset, 'f-teal', 8, .6);
+        gOut.innerHTML = '';
+        for (const kk of coarse){ const [x,y] = kk.split(',').map(Number); S('rect', {x:O+x*2*C+2, y:O+y*2*C+2, width:2*C-4, height:2*C-4, rx:4, class:'f-heat', opacity:.35}, gOut); }
+        const list = toList(coarse).map(([x,y]) => [2*x, 2*y]);
+        kernelLoop(list, C, 3);
+        mode.textContent = 'Sparse conv, stride 2';
+        cnt.textContent = `12×12 → 6×6 · 활성 ${coarse.size} / 36`;
+      }
+    },
+    leave(){ clearInterval(timer); }
+  };
+})();
+
+/* ============================================================
+   S9 rulebook toy
+   ============================================================ */
+hooks.s9 = (function(){
+  const sites = {A:[1,1], B:[2,1], C:[2,2], D:[4,3]};
+  const px = (x,y) => [20 + x*44, 10 + (3-y)*44];
+  let timer = 0, rects = {}, arrow;
+  return {
+    init(){
+      const g = $('#s9grid');
+      for (let i = 0; i <= 5; i++) S('path', {d:`M${20+i*44} 10V186`, class:'s-grid'}, g);
+      for (let j = 0; j <= 4; j++) S('path', {d:`M20 ${10+j*44}H240`, class:'s-grid'}, g);
+      for (const n in sites){
+        const [x,y] = px(...sites[n]);
+        rects[n] = S('rect', {x:x+4, y:y+4, width:36, height:36, rx:4, class:'f-teal', opacity:.85}, g);
+        S('text', {x:x+22, y:y+27, 'text-anchor':'middle', style:'font-weight:700;fill:var(--panel)'}, g, n);
+      }
+      arrow = S('path', {d:'', class:'s-heat', 'stroke-width':3, 'marker-end':'url(#ah-heat)', opacity:0}, g);
+      S('text', {x:20, y:204, class:'mono mut', style:'font-size:11px'}, g, 'x →   (y ↑)');
+    },
+    step(k){
+      clearInterval(timer);
+      const rows = $$('#s9rule tbody tr');
+      rows.forEach(r => r.style.background = '');
+      const gs = $$('#s9g span'), os = $$('#s9o span');
+      [...gs, ...os].forEach(s => s.classList.remove('hi','hi2'));
+      Object.values(rects).forEach(r => { r.setAttribute('class','f-teal'); });
+      if (arrow) arrow.setAttribute('opacity', 0);
+      if (k === 3){
+        rows[0].style.background = 'var(--heat-soft)';
+        const names = ['A','B','C','D']; let i = 0;
+        const tick = () => {
+          [...gs, ...os].forEach(s => s.classList.remove('hi','hi2'));
+          Object.values(rects).forEach(r => r.setAttribute('class','f-teal'));
+          const r = i % 4;
+          gs[r*2].classList.add('hi'); gs[r*2+1].classList.add('hi');
+          os[r*2].classList.add('hi2'); os[r*2+1].classList.add('hi2');
+          rects[names[r]].setAttribute('class','f-heat');
+          i++;
+        };
+        tick(); if (!reduced) timer = setInterval(tick, 900);
+      }
+      if (k === 4){
+        rows[1].style.background = 'var(--heat-soft)';
+        rects.B.setAttribute('class','f-heat'); rects.A.setAttribute('class','f-violet');
+        const [bx,by] = px(...sites.B), [ax,ay] = px(...sites.A);
+        arrow.setAttribute('d', `M${bx+10} ${by+22}L${ax+36} ${ay+22}`); arrow.setAttribute('opacity', 1);
+        os[0].classList.add('hi2'); os[1].classList.add('hi2');
+      }
+    },
+    leave(){ clearInterval(timer); }
+  };
+})();
+
+/* ============================================================
+   S10 backbone cuboids
+   ============================================================ */
+hooks.s10 = {
+  init(){
+    const svg = $('#s10svg');
+    const st = [
+      {n:'conv_input + conv1', c:16, z:41, xy:1440, op:'SubM × 5'},
+      {n:'conv2', c:32, z:21, xy:720, op:'SpConv s2 + SubM × 4'},
+      {n:'conv3', c:64, z:11, xy:360, op:'SpConv s2 + SubM × 4'},
+      {n:'conv4', c:128, z:5, xy:180, op:'SpConv s2 + SubM × 4'},
+      {n:'extra_conv', c:128, z:2, xy:180, op:'SpConv z만 s2'}
+    ];
+    let x = 10; const base = 290;
+    S('text', {x:10, y:30, class:'mut', style:'font-size:12px'}, svg, '정사각형 = 가로세로 해상도, 두께 = 채널 수 (로그 눈금)');
+    st.forEach((s,i) => {
+      const side = 40 + 100 * Math.log2(s.xy/180)/3, d = 8 + 60 * Math.log2(s.c/16)/3;
+      const dx = d*0.8, dy = d*0.6;
+      const g = S('g', {class:'frag', 'data-s': i+2}, svg);
+      const y0 = base - side;
+      const cls = i === 4 ? 'f-heat-s s-heat' : 'f-violet-s s-violet';
+      S('path', {d:`M${x} ${y0}L${x+dx} ${y0-dy}L${x+dx+side} ${y0-dy}L${x+side} ${y0}Z`, class:cls, 'stroke-width':1.2}, g);
+      S('path', {d:`M${x+side} ${y0}L${x+side+dx} ${y0-dy}L${x+side+dx} ${base-dy}L${x+side} ${base}Z`, class:cls, 'stroke-width':1.2, opacity:.8}, g);
+      S('rect', {x, y:y0, width:side, height:side, class:cls, 'stroke-width':1.5}, g);
+      const tx = x;
+      S('text', {x:tx, y:base+24, style:'font-weight:700;font-size:13px'}, g, s.n);
+      S('text', {x:tx, y:base+44, class:'mono violet'}, g, `C ${s.c} · Z ${s.z}`);
+      S('text', {x:tx, y:base+62, class:'mono violet'}, g, `${s.xy} × ${s.xy}`);
+      S('text', {x:tx, y:base+80, class:'mut', style:'font-size:11.5px'}, g, s.op);
+      const nx = x + side + dx + 40;
+      if (i < 4) S('path', {d:`M${x+side+dx+6} ${base-side/2}H${nx-6}`, class:'s-mut', 'stroke-width':1.5, 'marker-end':'url(#ah-mut)'}, g);
+      x = nx;
+    });
+    const rg = S('g', {class:'frag', 'data-s':7}, svg);
+    const bx = [['SubM','f-violet-s'],['BN','f-panel2'],['ReLU','f-panel2'],['SubM','f-violet-s'],['BN','f-panel2']];
+    let rx = 60; const ry = 410;
+    S('text', {x:10, y:ry+20, class:'mono'}, rg, 'x');
+    S('path', {d:`M24 ${ry+15}H${rx-4}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
+    bx.forEach(([t,c]) => { S('rect', {x:rx, y:ry, width:62, height:30, rx:4, class:c + ' s-line'}, rg); S('text', {x:rx+31, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, t); S('path', {d:`M${rx+62} ${ry+15}H${rx+78}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg); rx += 80; });
+    S('circle', {cx:rx+12, cy:ry+15, r:12, class:'f-heat-s s-heat'}, rg); S('text', {x:rx+12, y:ry+20, 'text-anchor':'middle', class:'heat', style:'font-weight:700'}, rg, '+');
+    S('path', {d:`M${rx+24} ${ry+15}H${rx+44}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
+    S('rect', {x:rx+46, y:ry, width:62, height:30, rx:4, class:'f-panel2 s-line'}, rg); S('text', {x:rx+77, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, 'ReLU');
+    S('path', {d:`M40 ${ry+15}V${ry-18}H${rx+12}V${ry+1}`, class:'f-none s-heat', 'stroke-width':1.8, 'marker-end':'url(#ah-heat)'}, rg);
+    S('text', {x:(40+rx)/2, y:ry-24, 'text-anchor':'middle', class:'heat', style:'font-size:12px'}, rg, '지름길 (identity)');
+  }
+};
+
+/* ============================================================
+   S11 height -> channels
+   ============================================================ */
+hooks.s11 = (function(){
+  let cellsZ = [], plateCells = [];
+  const W = 34, X0 = 150, Y1 = 212, Y0 = 256, XF = 106, YF = 376;
+  return {
+    init(){
+      const svg = $('#s11svg');
+      const P = (i,j) => [140 + (i-j)*22, 36 + (i+j)*11];
+      const r = rng(3);
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++){
+        const a = P(i,j), b = P(i+1,j), c = P(i+1,j+1), d = P(i,j+1);
+        const on = r() < .3 || (i === 3 && j === 2);
+        const p = S('path', {d:`M${a}L${b}L${c}L${d}Z`, class: on ? 'f-teal-s s-grid' : 'f-panel s-grid', 'stroke-width':1}, svg);
+        plateCells.push({p, on});
+      }
+      // pillar on cell (3,2)
+      const top = P(3,2), right = P(4,2), bot = P(4,3), left = P(3,3);
+      const cube = (h0, h1, cls) => {
+        S('path', {d:`M${left[0]} ${left[1]-h1}L${bot[0]} ${bot[1]-h1}L${bot[0]} ${bot[1]-h0}L${left[0]} ${left[1]-h0}Z`, class:cls, opacity:.85, 'stroke-width':1}, svg);
+        S('path', {d:`M${bot[0]} ${bot[1]-h1}L${right[0]} ${right[1]-h1}L${right[0]} ${right[1]-h0}L${bot[0]} ${bot[1]-h0}Z`, class:cls, opacity:.65, 'stroke-width':1}, svg);
+        S('path', {d:`M${top[0]} ${top[1]-h1}L${right[0]} ${right[1]-h1}L${bot[0]} ${bot[1]-h1}L${left[0]} ${left[1]-h1}Z`, class:cls, 'stroke-width':1}, svg);
+      };
+      cube(0, 26, 'f-teal s-teal'); cube(26, 52, 'f-violet s-violet');
+      S('text', {x:300, y:70, style:'font-size:12.5px'}, svg, 'BEV 한 칸 (y, x) 위의 특징 기둥');
+      S('text', {x:300, y:90, class:'mut', style:'font-size:12px'}, svg, '보라 = z 1층, 청록 = z 0층');
+      S('text', {x:300, y:110, class:'mut', style:'font-size:12px'}, svg, '격자 180 × 180, 한 칸 0.6 m');
+      S('path', {d:`M${bot[0]} ${bot[1]+4}L${X0-10} ${Y1-4}`, class:'s-mut', 'stroke-dasharray':'3 4'}, svg);
+      S('text', {x:X0 + 8*W + 10, y:Y1+22, class:'mono violet'}, svg, 'z=1 : 128ch');
+      S('text', {x:X0 + 8*W + 10, y:Y0+22, class:'mono teal'}, svg, 'z=0 : 128ch');
+      S('text', {x:12, y:Y1+22, class:'mut', style:'font-size:11px'}, svg, '(128개 중 8개)');
+      const lab = S('g', {class:'frag', 'data-s':3}, svg);
+      S('text', {x:XF, y:YF-12, class:'mono heat'}, lab, 'reshape → 256ch : 채널 번호 = c·2 + d');
+      for (let i = 0; i < 16; i++) S('text', {x:XF + i*W + W/2, y:YF+50, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, lab, String(i));
+      for (let d = 0; d < 2; d++) for (let c = 0; c < 8; c++){
+        const g = S('g', {class:'mv'}, svg);
+        S('rect', {x:0, y:0, width:W-3, height:30, rx:3, class: d ? 'f-violet' : 'f-teal', opacity:.9}, g);
+        S('text', {x:(W-3)/2, y:20, 'text-anchor':'middle', class:'mono', style:'font-size:10.5px;fill:var(--panel)'}, g, 'c' + c);
+        cellsZ.push({g, c, d});
+      }
+    },
+    step(k){
+      plateCells.forEach(({p,on}) => p.setAttribute('class', on ? 'f-teal-s s-grid' : (k >= 2 ? 'f-panel2 s-grid' : 'f-panel s-grid')));
+      cellsZ.forEach(({g,c,d}) => {
+        let x, y;
+        if (k >= 3){ x = XF + (c*2 + d)*W; y = YF; }
+        else { x = X0 + c*W; y = d ? Y1 : Y0; }
+        g.style.transform = `translate(${x}px, ${y}px)`;
+      });
+    }
+  };
+})();
+
+/* ============================================================
+   S13 head diagram
+   ============================================================ */
+hooks.s13 = {
+  init(){
+    const svg = $('#s13svg');
+    const tasks = [['승용차'],['트럭','공사차량'],['버스','트레일러'],['방호벽'],['오토바이','자전거'],['보행자','콘']];
+    const hm = [1,2,2,1,2,2];
+    S('rect', {x:260, y:6, width:200, height:40, rx:4, class:'f-violet-s s-violet'}, svg);
+    S('text', {x:360, y:31, 'text-anchor':'middle', class:'mono'}, svg, 'Neck 출력 512×180²');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    S('path', {d:'M360 46V66', class:'s-ink', 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:260, y:68, width:200, height:40, rx:4, class:'f-teal-s s-teal'}, g2);
+    S('text', {x:360, y:93, 'text-anchor':'middle', class:'mono'}, g2, 'shared Conv3×3 → 64×180²');
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg), g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    const heads = [['hm',0],['reg',2],['height',1],['dim',3],['rot',2],['vel',2]];
+    tasks.forEach((t,i) => {
+      const x = 8 + i*119, cx = x + 54;
+      S('path', {d:`M360 108L${cx} 140`, class:'s-mut', 'stroke-width':1}, g3);
+      S('rect', {x, y:142, width:108, height:52, rx:4, class:'f-bg s-line'}, g3);
+      S('text', {x:cx, y:160, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, g3, 'task ' + (i+1));
+      S('text', {x:cx, y:178, 'text-anchor':'middle', style:'font-size:12.5px;font-weight:600'}, g3, t[0]);
+      if (t[1]) S('text', {x:cx, y:191, 'text-anchor':'middle', style:'font-size:11.5px'}, g3, t[1]);
+      heads.forEach(([h,c],j) => {
+        const y = 206 + j*36, ch = h === 'hm' ? hm[i] : c;
+        S('rect', {x, y, width:108, height:30, rx:3, class: h === 'hm' ? 'f-heat-s s-heat' : 'f-teal-s s-teal'}, g4);
+        S('text', {x:x+8, y:y+20, class:'mono', style:'font-size:11.5px'}, g4, h);
+        S('text', {x:x+100, y:y+20, 'text-anchor':'end', class:'mono ' + (h === 'hm' ? 'heat' : 'teal'), style:'font-size:11.5px;font-weight:600'}, g4, String(ch));
+      });
+    });
+    const g5 = S('g', {class:'frag', 'data-s':5}, svg);
+    S('text', {x:360, y:452, 'text-anchor':'middle', style:'font-size:13px'}, g5, '출력 36개, 각각 [1, C, 180, 180] · 채널 합 70');
+  }
+};
+
+/* ============================================================
+   S14 heatmap
+   ============================================================ */
+const TASKS = ['승용차','트럭·공사차량','버스·트레일러','방호벽','오토바이·자전거','보행자·콘'];
+const HEAT = (function(){
+  const r = rng(21), maps = [];
+  for (let t = 0; t < 6; t++){
+    const m = new Float32Array(180*180);
+    for (let i = 0; i < m.length; i++) m[i] = r()*r()*0.04;
+    for (const o of OBJS){
+      if (o.task !== t) continue;
+      const col = (o.x + 54)/0.6, row = (o.y + 54)/0.6;
+      const ci = Math.floor(col), ri = Math.floor(row);
+      const rad = 2, sig = (2*rad+1)/6;
+      const peak = o === OBJS[0] ? 0.91 : 0.7 + r()*0.25;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++){
+        const x = ci + dx, y = ri + dy; if (x < 0 || y < 0 || x >= 180 || y >= 180) continue;
+        const v = peak * Math.exp(-(dx*dx + dy*dy)/(2*sig*sig));
+        const idx = y*180 + x; m[idx] = Math.max(m[idx], v);
+      }
+    }
+    maps.push(m);
+  }
+  return maps;
+})();
+hooks.s14 = (function(){
+  let task = 0, lastK = 0;
+  function draw(k){
+    const P = prep($('#cv-s14')); if (!P) return;
+    const {ctx, w, h} = P, cs = Math.min(w,h)/180;
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    const heat = tok('--heat'), hx = heat.startsWith('#') ? heat : '#c0650f';
+    const m = HEAT[k >= 1 ? task : 0];
+    if (k >= 1){
+      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++){
+        const v = m[r*180 + c]; if (v < 0.015) continue;
+        ctx.fillStyle = hexA(hx, Math.min(1, v*1.1));
+        ctx.fillRect(c*cs, (179-r)*cs, cs+.3, cs+.3);
+      }
+    }
+    // grid hint
+    ctx.strokeStyle = tok('--line'); ctx.lineWidth = 1;
+    for (let i = 0; i <= 180; i += 30){ ctx.beginPath(); ctx.moveTo(i*cs, 0); ctx.lineTo(i*cs, 180*cs); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i*cs); ctx.lineTo(180*cs, i*cs); ctx.stroke(); }
+    if (k >= 4){
+      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = .8;
+      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++) if (m[r*180+c] > 0.1) ctx.strokeRect(c*cs+.4, (179-r)*cs+.4, cs-.8, cs-.8);
+    }
+    ctx.fillStyle = tok('--ink');
+    const e = 90*cs; ctx.beginPath(); ctx.moveTo(e+6, e); ctx.lineTo(e-4, e-4); ctx.lineTo(e-4, e+4); ctx.closePath(); ctx.fill();
+    ctx.font = '11px ' + tok('--mono'); ctx.fillStyle = tok('--muted');
+    ctx.fillText('30칸 = 18 m', 4, 180*cs - 6);
+    if (k >= 3 && task === 0){
+      ctx.strokeStyle = tok('--rose'); ctx.lineWidth = 2;
+      ctx.strokeRect((110-2)*cs, (179-95-2)*cs, 5*cs, 5*cs);
+    }
+  }
+  return {
+    init(){
+      const b = $('#s14btns');
+      TASKS.forEach((t,i) => {
+        const x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.className = i === 0 ? 'sel' : '';
+        x.addEventListener('click', e => { e.stopPropagation(); task = i; $$('button', b).forEach((y,j) => y.classList.toggle('sel', j === i)); draw(Math.max(lastK, 1)); });
+        b.appendChild(x);
+      });
+      const tb = $('#s14tab'), sig = 5/6;
+      let html = '';
+      for (let dy = 2; dy >= -2; dy--){
+        html += '<tr>';
+        for (let dx = -2; dx <= 2; dx++){
+          const v = 0.91*Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+          html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v.toFixed(2)}</td>`;
+        }
+        html += '</tr>';
+      }
+      tb.innerHTML = html;
+    },
+    step(k){ lastK = k; draw(k); }
+  };
+})();
+
+/* ============================================================
+   S15 regression encodings
+   ============================================================ */
+hooks.s15 = {
+  init(){
+    const svg = $('#s15svg');
+    // panel A: offset
+    const gA = S('g', {class:'frag', 'data-s':1}, svg);
+    S('rect', {x:0, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gA);
+    S('text', {x:12, y:22, style:'font-weight:700'}, gA, '오프셋: 칸 안의 정확한 위치');
+    const cx0 = 90, cy0 = 40, cz = 170;
+    for (let i = -1; i <= 2; i++){ S('path', {d:`M${cx0+i*cz*0.5} ${cy0}V${cy0+cz}`, class:'s-grid'}, gA); }
+    S('rect', {x:cx0, y:cy0, width:cz, height:cz, class:'f-heat-s s-heat', 'stroke-width':2}, gA);
+    const px = cx0 + 0.37*cz, py = cy0 + (1-0.62)*cz;
+    S('circle', {cx:cx0, cy:cy0+cz, r:5, class:'f-ink'}, gA);
+    S('text', {x:cx0-8, y:cy0+cz+18, class:'mono', 'text-anchor':'end', style:'font-size:11px'}, gA, '(110, 95)');
+    S('path', {d:`M${cx0} ${cy0+cz}H${px}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)'}, gA);
+    S('path', {d:`M${px} ${cy0+cz}V${py+6}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)', 'stroke-dasharray':'4 3'}, gA);
+    S('circle', {cx:px, cy:py, r:6, class:'f-rose'}, gA);
+    S('text', {x:cx0 + 0.18*cz, y:cy0+cz-8, class:'mono teal', 'text-anchor':'middle', style:'font-size:11px'}, gA, 'Δx 0.37');
+    S('text', {x:px+8, y:cy0+cz-0.3*cz, class:'mono teal', style:'font-size:11px'}, gA, 'Δy 0.62');
+    S('text', {x:cx0+cz+8, y:cy0+14, class:'mut', style:'font-size:11.5px'}, gA, '1칸 = 0.6 m');
+    // panel B: log scale
+    const gB = S('g', {class:'frag', 'data-s':3}, svg);
+    S('rect', {x:370, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gB);
+    S('text', {x:382, y:22, style:'font-weight:700'}, gB, '크기: log 눈금');
+    const items = [['콘',0.4],['보행자',0.7],['승용차',4.6],['버스',11]];
+    S('text', {x:382, y:50, class:'mut', style:'font-size:12px'}, gB, '길이 그대로 (선형)');
+    S('path', {d:'M390 80H700', class:'s-mut'}, gB);
+    items.forEach(([n,v]) => { const x = 390 + v/12*310; S('circle', {cx:x, cy:80, r:4.5, class:'f-teal'}, gB); });
+    S('text', {x:390, y:100, class:'mut mono', style:'font-size:10.5px'}, gB, '0');
+    S('text', {x:700, y:100, class:'mut mono', 'text-anchor':'end', style:'font-size:10.5px'}, gB, '12 m');
+    S('text', {x:392, y:66, class:'rose', style:'font-size:11px'}, gB, '작은 물체들이 한쪽에 몰림');
+    S('text', {x:382, y:138, class:'mut', style:'font-size:12px'}, gB, 'log(길이)');
+    S('path', {d:'M390 170H700', class:'s-mut'}, gB);
+    const lx = v => 390 + (Math.log(v) - Math.log(0.3)) / (Math.log(15) - Math.log(0.3)) * 310;
+    items.forEach(([n,v],i) => { const x = lx(v); S('circle', {cx:x, cy:170, r:4.5, class:'f-heat'}, gB); S('text', {x, y: i%2 ? 196 : 158, 'text-anchor':'middle', style:'font-size:11.5px'}, gB, n); });
+    S('text', {x:382, y:226, class:'mut', style:'font-size:11.5px'}, gB, '같은 간격 = 같은 "몇 배" · exp()로 되돌리면 항상 > 0');
+    // panel C: sin/cos
+    const gC = S('g', {class:'frag', 'data-s':4}, svg);
+    S('rect', {x:0, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gC);
+    S('text', {x:12, y:280, style:'font-weight:700'}, gC, '방향: 원 위의 점 (cos θ, sin θ)');
+    const ox = 120, oy = 385, R = 78;
+    S('circle', {cx:ox, cy:oy, r:R, class:'f-none s-mut'}, gC);
+    S('path', {d:`M${ox-R-10} ${oy}H${ox+R+10}M${ox} ${oy-R-10}V${oy+R+10}`, class:'s-grid'}, gC);
+    const a = Math.PI/6, qx = ox + R*Math.cos(a), qy = oy - R*Math.sin(a);
+    S('path', {d:`M${ox} ${oy}L${qx} ${qy}`, class:'s-heat', 'stroke-width':2}, gC);
+    S('circle', {cx:qx, cy:qy, r:5, class:'f-heat'}, gC);
+    S('text', {x:qx+6, y:qy-6, class:'mono heat', style:'font-size:11px'}, gC, '(0.866, 0.50)');
+    S('path', {d:`M${ox+28} ${oy}A28 28 0 0 0 ${ox+28*Math.cos(a)} ${oy-28*Math.sin(a)}`, class:'f-none s-heat'}, gC);
+    S('text', {x:ox+34, y:oy-5, class:'heat', style:'font-size:11px'}, gC, '30°');
+    const b1 = Math.PI*179/180, b2 = -Math.PI*179/180;
+    S('circle', {cx:ox + R*Math.cos(b1), cy:oy - R*Math.sin(b1), r:4.5, class:'f-violet'}, gC);
+    S('circle', {cx:ox + R*Math.cos(b2), cy:oy - R*Math.sin(b2), r:4.5, class:'f-violet'}, gC);
+    S('text', {x:215, y:350, class:'violet', style:'font-size:11.5px'}, gC, '+179° 와 −179°');
+    S('text', {x:215, y:368, style:'font-size:11.5px'}, gC, '숫자로는 358 차이');
+    S('text', {x:215, y:386, style:'font-size:11.5px'}, gC, '원 위에선 바로 옆');
+    S('text', {x:215, y:420, class:'mono', style:'font-size:11px'}, gC, 'θ = atan2(sin, cos)');
+    // panel D: velocity + height
+    const gD = S('g', {class:'frag', 'data-s':2}, svg);
+    S('rect', {x:370, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gD);
+    S('text', {x:382, y:280, style:'font-weight:700'}, gD, '높이 z와 속도 v');
+    S('path', {d:'M392 460H560', class:'s-mut', 'stroke-width':2}, gD);
+    S('rect', {x:420, y:405, width:110, height:40, rx:6, class:'f-teal-s s-teal'}, gD);
+    S('path', {d:'M475 460V427', class:'s-heat', 'stroke-width':2, 'marker-end':'url(#ah-heat)'}, gD);
+    S('circle', {cx:475, cy:425, r:4, class:'f-heat'}, gD);
+    S('text', {x:482, y:398, class:'mono heat', style:'font-size:11px'}, gD, 'z (중심 높이)');
+    S('text', {x:392, y:486, class:'mut', style:'font-size:11px'}, gD, '옆에서 본 모습 · 지면');
+    const gV = S('g', {class:'frag', 'data-s':5}, svg);
+    S('g', {}, gV);
+    const vg = S('g', {transform:'translate(630 380) rotate(-30)'}, gV);
+    S('rect', {x:-38, y:-15, width:76, height:30, rx:5, class:'f-teal-s s-teal'}, vg);
+    S('path', {d:'M0 0H70', class:'s-ink', 'stroke-width':2.2, 'marker-end':'url(#ah-ink)'}, vg);
+    S('text', {x:590, y:318, class:'mono', style:'font-size:11px'}, gV, 'v = (3.2, 0.4) m/s');
+    S('text', {x:590, y:452, class:'mut', style:'font-size:11px'}, gV, '위에서 본 모습');
+  }
+};
+
+/* ============================================================
+   S16 gaussian target
+   ============================================================ */
+hooks.s16 = {
+  init(){
+    const svg = $('#s16svg'), C = 30, cols = 16, rows = 9, ox = 40, oy = 16;
+    const c0 = 110 - 8, r0 = 95 - 4; // window: cols 102..117, rows 91..99
+    for (let i = 0; i <= cols; i++) S('path', {d:`M${ox+i*C} ${oy}V${oy+rows*C}`, class:'s-grid'}, svg);
+    for (let j = 0; j <= rows; j++) S('path', {d:`M${ox} ${oy+j*C}H${ox+cols*C}`, class:'s-grid'}, svg);
+    const toPx = (col, row) => [ox + (col - c0)*C, oy + (r0 + rows - row)*C];
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    const [hx, hy] = toPx(110, 96);
+    S('rect', {x:hx, y:hy, width:C, height:C, class:'f-heat-s s-heat', 'stroke-width':2}, g1);
+    // car footprint
+    const cc = [110.37, 95.62], L = 4.62/0.6, Wd = 1.94/0.6, a = 0.524;
+    const pts = [[L/2,Wd/2],[-L/2,Wd/2],[-L/2,-Wd/2],[L/2,-Wd/2]].map(([u,v]) => {
+      const x = cc[0] + u*Math.cos(a) - v*Math.sin(a), y = cc[1] + u*Math.sin(a) + v*Math.cos(a);
+      const [px, py] = toPx(x, y); return px + ',' + py;
+    });
+    S('polygon', {points:pts.join(' '), class:'f-none s-teal', 'stroke-width':2}, svg);
+    const [cx, cy] = toPx(cc[0], cc[1]);
+    S('circle', {cx, cy, r:4.5, class:'f-rose'}, svg);
+    S('text', {x:ox, y:oy+rows*C+18, class:'mono mut', style:'font-size:11px'}, svg, `열 ${c0} … ${c0+cols-1}  (1칸 = 0.6 m)`);
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const [ex, ey] = toPx(110.5, 95.5);
+    S('circle', {cx:ex, cy:ey, r:2.5*C, class:'f-heat s-heat', 'fill-opacity':.12, 'stroke-dasharray':'5 4'}, g3);
+    S('path', {d:`M${ex} ${ey}H${ex+2*C}`, class:'s-heat', 'stroke-width':2}, g3);
+    S('text', {x:ex+C, y:ey-6, 'text-anchor':'middle', class:'mono heat', style:'font-size:11px'}, g3, 'r = 2');
+    const tb = $('#s16tab'), sig = 5/6; let html = '';
+    for (let dy = 2; dy >= -2; dy--){
+      html += '<tr>';
+      for (let dx = -2; dx <= 2; dx++){
+        const v = Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+        html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v < 0.005 ? '0.00' : v.toFixed(2)}</td>`;
+      }
+      html += '</tr>';
+    }
+    tb.innerHTML = html;
+  }
+};
+
+/* ============================================================
+   S17 focal loss chart
+   ============================================================ */
+hooks.s17 = {
+  init(){
+    const svg = $('#s17svg');
+    const plot = (x0, title, curves) => {
+      const W = 300, H = 280, y0 = 40, ymax = 3;
+      S('text', {x:x0, y:22, style:'font-weight:700'}, svg, title);
+      const X = p => x0 + 30 + p*(W-30), Y = v => y0 + H - Math.min(v, ymax)/ymax*H;
+      for (let v = 0; v <= 3; v++){ S('path', {d:`M${X(0)} ${Y(v)}H${X(1)}`, class:'s-grid'}, svg); S('text', {x:X(0)-8, y:Y(v)+4, 'text-anchor':'end', class:'mono mut', style:'font-size:10.5px'}, svg, String(v)); }
+      [0, .5, 1].forEach(p => S('text', {x:X(p), y:y0+H+18, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, svg, String(p)));
+      S('text', {x:X(.5), y:y0+H+36, 'text-anchor':'middle', class:'mut', style:'font-size:11.5px'}, svg, '예측 확률 p');
+      S('text', {x:x0, y:y0-6, class:'mut', style:'font-size:11px'}, svg, 'loss');
+      curves.forEach(c => {
+        const g = S('g', {class:'frag', 'data-s':c.s}, svg);
+        let d = '';
+        for (let i = 1; i < 200; i++){ const p = i/200, v = c.f(p); d += (d ? 'L' : 'M') + X(p).toFixed(1) + ' ' + Y(v).toFixed(1); }
+        S('path', {d, class:'f-none ' + c.cls, 'stroke-width': c.dash ? 1.6 : 2.4, 'stroke-dasharray': c.dash ? '5 4' : 'none'}, g);
+        S('text', {x:c.lx, y:c.ly, class:c.tc, style:'font-size:11.5px'}, g, c.label);
+      });
+    };
+    plot(0, '정답 칸 (y = 1)', [
+      {s:1, f:p => -Math.log(p), cls:'s-mut', dash:true, tc:'mut', label:'BCE: −log p', lx:60, ly:120},
+      {s:2, f:p => -((1-p)**2)*Math.log(p), cls:'s-heat', tc:'heat', label:'Focal: −(1−p)² log p', lx:95, ly:250}
+    ]);
+    plot(370, '빈 칸 (y < 1)', [
+      {s:1, f:p => -Math.log(1-p), cls:'s-mut', dash:true, tc:'mut', label:'BCE: −log(1−p)', lx:470, ly:150},
+      {s:3, f:p => -(p**2)*Math.log(1-p), cls:'s-teal', tc:'teal', label:'y = 0: −p² log(1−p)', lx:560, ly:220},
+      {s:3, f:p => -((1-0.49)**4)*(p**2)*Math.log(1-p), cls:'s-violet', tc:'violet', label:'y = 0.49 (봉우리 옆)', lx:560, ly:300}
+    ]);
+  }
+};
+
+/* ============================================================
+   S18 postprocess: candidates, decode, rotated NMS
+   ============================================================ */
+function polyArea(p){ let a = 0; for (let i = 0; i < p.length; i++){ const [x1,y1] = p[i], [x2,y2] = p[(i+1)%p.length]; a += x1*y2 - x2*y1; } return Math.abs(a)/2; }
+function clip(subj, clipP){
+  let out = subj;
+  for (let i = 0; i < clipP.length; i++){
+    const A = clipP[i], B = clipP[(i+1)%clipP.length], inp = out; out = [];
+    if (!inp.length) break;
+    const side = P => (B[0]-A[0])*(P[1]-A[1]) - (B[1]-A[1])*(P[0]-A[0]);
+    for (let j = 0; j < inp.length; j++){
+      const P = inp[j], Q = inp[(j+1)%inp.length], sp = side(P), sq = side(Q);
+      if (sp >= 0) out.push(P);
+      if ((sp >= 0) !== (sq >= 0)){ const t = sp/(sp - sq); out.push([P[0] + (Q[0]-P[0])*t, P[1] + (Q[1]-P[1])*t]); }
+    }
+  }
+  return out;
+}
+function iou(a, b){
+  const pa = corners(a), pb = corners(b);
+  const ccw = p => { let s = 0; for (let i = 0; i < p.length; i++){ const [x1,y1] = p[i], [x2,y2] = p[(i+1)%p.length]; s += x1*y2 - x2*y1; } return s > 0 ? p : p.slice().reverse(); };
+  const inter = clip(ccw(pa), ccw(pb));
+  const I = inter.length > 2 ? polyArea(inter) : 0;
+  return I / (a.l*a.w + b.l*b.w - I);
+}
+const CANDS = (function(){
+  const r = rng(99), out = [];
+  OBJS.forEach((o, oi) => {
+    if (Math.abs(o.x) > 30 || Math.abs(o.y) > 24) return;
+    const ci = Math.floor((o.x+54)/0.6), ri = Math.floor((o.y+54)/0.6);
+    const m = HEAT[o.task];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+      const v = m[(ri+dy)*180 + ci+dx];
+      if (!(v > 0.1)) continue;
+      out.push({oi, score:v, cell:[ci+dx, ri+dy], x:o.x + gauss(r)*0.18, y:o.y + gauss(r)*0.18, yaw:o.yaw + gauss(r)*0.06, w:o.w*(1+gauss(r)*0.05), l:o.l*(1+gauss(r)*0.05), cls:o.cls});
+    }
+  });
+  out.sort((a,b) => b.score - a.score);
+  const keep = [], dead = new Set();
+  out.forEach((c,i) => {
+    if (dead.has(i)) return;
+    keep.push(i);
+    for (let j = i+1; j < out.length; j++) if (!dead.has(j) && iou(c, out[j]) > 0.2) dead.add(j);
+  });
+  out.forEach((c,i) => c.keep = keep.includes(i));
+  return out;
+})();
+hooks.s18 = (function(){
+  let raf = 0, t0 = 0;
+  function draw(k, t){
+    const P = prep($('#cv-s18')); if (!P) return;
+    const {ctx, w, h} = P;
+    const R = 26, sc = Math.min(w,h)/(2*R), cx = w/2, cy = h/2, m = {sc, cx, cy};
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha = .35;
+    for (const p of POINTS){ const X = cx + p[0]*sc, Y = cy - p[1]*sc; if (X<0||Y<0||X>w||Y>h) continue; ctx.fillStyle = zColor(p[2]); ctx.fillRect(X-.7, Y-.7, 1.4, 1.4); }
+    ctx.globalAlpha = 1;
+    const heat = tok('--heat'), rose = tok('--rose'), ink = tok('--ink');
+    if (k === 1){
+      for (const c of CANDS){ const X = cx + ((c.cell[0]+.5)*0.6 - 54)*sc, Y = cy - ((c.cell[1]+.5)*0.6 - 54)*sc; ctx.fillStyle = heat; ctx.globalAlpha = .4 + .6*c.score; ctx.beginPath(); ctx.arc(X, Y, 3, 0, Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+    if (k === 2){ for (const c of CANDS){ ctx.globalAlpha = .3 + .6*c.score; strokeBox(ctx, c, m, heat, 1.2, false); } ctx.globalAlpha = 1; }
+    if (k === 3){
+      const e = reduced ? 1 : Math.min(1, (t - t0)/1600);
+      for (const c of CANDS){
+        if (c.keep){ strokeBox(ctx, c, m, heat, 2, true); continue; }
+        if (e < .5){ ctx.globalAlpha = .9; strokeBox(ctx, c, m, rose, 1.4, false); }
+        else { ctx.globalAlpha = Math.max(0, 1 - (e - .5)*2); strokeBox(ctx, c, m, rose, 1.4, false); }
+      }
+      ctx.globalAlpha = 1;
+      if (e < 1) raf = requestAnimationFrame(tt => draw(k, tt));
+    }
+    if (k >= 4){
+      ctx.font = '11px ' + tok('--sans');
+      for (const c of CANDS){ if (!c.keep) continue; strokeBox(ctx, c, m, heat, 2, true); const X = cx + c.x*sc, Y = cy - c.y*sc; ctx.fillStyle = ink; ctx.fillText(`${c.cls} ${c.score.toFixed(2)}`, X + 6, Y - Math.max(c.l, c.w)*sc/2 - 3); }
+    }
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.moveTo(cx+7, cy); ctx.lineTo(cx-5, cy-5); ctx.lineTo(cx-5, cy+5); ctx.closePath(); ctx.fill();
+    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--muted');
+    const nk = CANDS.filter(c => c.keep).length;
+    const msg = ['', `후보 칸 ${CANDS.length}개`, `후보 박스 ${CANDS.length}개 (겹침 많음)`, `NMS: ${CANDS.length - nk}개 제거`, `최종 ${nk}개`, `최종 ${nk}개`, `최종 ${nk}개`][k] || '';
+    ctx.fillText(msg, 12, 20);
+  }
+  return {
+    step(k){ cancelAnimationFrame(raf); t0 = performance.now(); draw(k, t0); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S19 tracking
+   ============================================================ */
+hooks.s19 = {
+  init(){
+    const svg = $('#s19svg');
+    S('rect', {x:0, y:0, width:720, height:300, rx:5, class:'f-bg s-line'}, svg);
+    const prev = [[140,110,'#3'],[330,200,'#7'],[520,90,'#9']];
+    const curr = [[205,118,[65,8]],[345,160,[15,40]],[600,100,[80,10]],[610,235,[0,0]]];
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    prev.forEach(([x,y,id]) => { S('circle', {cx:x, cy:y, r:11, class:'f-none s-violet', 'stroke-width':2.5}, g1); S('text', {x:x, y:y-18, 'text-anchor':'middle', class:'mono violet', style:'font-size:11.5px'}, g1, id); });
+    curr.forEach(([x,y]) => S('circle', {cx:x, cy:y, r:9, class:'f-heat'}, g1));
+    S('text', {x:14, y:24, class:'violet', style:'font-size:12px'}, g1, '○ 이전 프레임 t−1 (ID 있음)');
+    S('text', {x:220, y:24, class:'heat', style:'font-size:12px'}, g1, '● 현재 프레임 t (ID 없음)');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    curr.forEach(([x,y,v]) => {
+      if (!v[0] && !v[1]) return;
+      S('path', {d:`M${x} ${y}L${x - v[0]} ${y + v[1]}`, class:'s-heat', 'stroke-width':1.8, 'stroke-dasharray':'5 4', 'marker-end':'url(#ah-heat)'}, g2);
+      S('circle', {cx:x - v[0], cy:y + v[1], r:6, class:'f-none s-heat', 'stroke-width':2}, g2);
+    });
+    S('text', {x:14, y:286, class:'heat', style:'font-size:12px'}, g2, "--→  p' = p − v·Δt  (속도로 되돌린 위치)");
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const match = [[0,0],[1,1],[2,2]];
+    match.forEach(([ci,pi]) => { const [x,y] = curr[ci]; S('text', {x:x + 14, y:y + 5, class:'mono heat', style:'font-size:12px;font-weight:600'}, g3, prev[pi][2]); });
+    S('text', {x:curr[3][0] + 14, y:curr[3][1] + 5, class:'mono rose', style:'font-size:12px;font-weight:600'}, g3, '새 ID #12');
+    S('text', {x:420, y:286, style:'font-size:12px'}, g3, '가장 가까운 것끼리 연결 → ID 이어받기');
+    // two-stage inset
+    const g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    S('rect', {x:0, y:318, width:720, height:162, rx:5, class:'f-bg s-line'}, g4);
+    S('text', {x:14, y:342, style:'font-weight:700'}, g4, '원 논문 2단계: 5개 점의 특징으로 다시 다듬기');
+    const bg = S('g', {transform:'translate(120 405) rotate(-20)'}, g4);
+    S('rect', {x:-70, y:-28, width:140, height:56, rx:4, class:'f-teal-s s-teal', 'stroke-width':1.5}, bg);
+    [[0,0],[70,0],[-70,0],[0,28],[0,-28]].forEach(([x,y]) => S('circle', {cx:x, cy:y, r:6, class:'f-heat'}, bg));
+    S('path', {d:'M230 405H300', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g4);
+    S('rect', {x:302, y:380, width:160, height:50, rx:4, class:'f-violet-s s-violet'}, g4);
+    S('text', {x:382, y:402, 'text-anchor':'middle', class:'mono', style:'font-size:11.5px'}, g4, '5 × 특징 이어붙이기');
+    S('text', {x:382, y:419, 'text-anchor':'middle', class:'mono', style:'font-size:11.5px'}, g4, '→ MLP');
+    S('path', {d:'M462 405H530', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g4);
+    S('text', {x:536, y:398, style:'font-size:12.5px'}, g4, '점수(IoU) 재평가');
+    S('text', {x:536, y:418, style:'font-size:12.5px'}, g4, '박스 미세 보정');
+    S('text', {x:14, y:468, class:'mut', style:'font-size:11.5px'}, g4, '중심 + 네 면의 중앙 = 물체 가장자리까지 보는 5개 지점');
+  }
+};
+
+/* ============================================================
+   S20 deploy concept
+   ============================================================ */
+hooks.s20 = {
+  init(){
+    const svg = $('#s20svg');
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    S('rect', {x:0, y:10, width:150, height:70, rx:4, class:'f-bg s-line'}, g1);
+    S('text', {x:75, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g1, 'PyTorch');
+    S('text', {x:75, y:60, 'text-anchor':'middle', class:'mono mut', style:'font-size:11px'}, g1, '학습용 · 3 FPS (A30)');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    S('path', {d:'M150 45H216', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:218, y:10, width:150, height:70, rx:4, class:'f-violet-s s-violet'}, g2);
+    S('text', {x:293, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g2, 'ONNX');
+    S('text', {x:293, y:60, 'text-anchor':'middle', class:'mono', style:'font-size:11px'}, g2, '계산 그래프 파일');
+    S('path', {d:'M368 45H434', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:436, y:10, width:160, height:70, rx:4, class:'f-heat-s s-heat'}, g2);
+    S('text', {x:516, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g2, 'TensorRT 엔진');
+    S('text', {x:516, y:60, 'text-anchor':'middle', class:'mono', style:'font-size:11px'}, g2, 'Orin 전용 · 최적화됨');
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    S('text', {x:0, y:122, style:'font-weight:700'}, g3, '층 합치기');
+    [['Conv',0],['BN',80],['ReLU',160]].forEach(([t,x]) => { S('rect', {x, y:136, width:66, height:34, rx:4, class:'f-bg s-line'}, g3); S('text', {x:x+33, y:158, 'text-anchor':'middle', style:'font-size:12px'}, g3, t); });
+    S('path', {d:'M66 153H78M146 153H158', class:'s-ink', 'marker-end':'url(#ah-ink)'}, g3);
+    S('text', {x:0, y:194, class:'mut', style:'font-size:11.5px'}, g3, 'GPU 커널 3번, 메모리 왕복 3번');
+    S('path', {d:'M236 153H300', class:'s-heat', 'stroke-width':2, 'marker-end':'url(#ah-heat)'}, g3);
+    S('rect', {x:302, y:136, width:170, height:34, rx:4, class:'f-heat-s s-heat'}, g3);
+    S('text', {x:387, y:158, 'text-anchor':'middle', style:'font-size:12px;font-weight:600'}, g3, 'Conv (BN·ReLU 포함)');
+    S('text', {x:302, y:194, class:'heat', style:'font-size:11.5px'}, g3, '커널 1번, 메모리 왕복 1번');
+    const tb = $('#s20bits');
+    const rowsB = [['FP32', [[1,'부호','var(--rose)'],[8,'지수','var(--violet)'],[23,'가수','var(--teal)']], '4 B'], ['FP16', [[1,'','var(--rose)'],[5,'','var(--violet)'],[10,'','var(--teal)']], '2 B'], ['INT8', [[8,'정수 × 스케일','var(--heat)']], '1 B']];
+    tb.innerHTML = '<thead><tr><th>형식</th><th>비트 구성 (32비트 폭 기준)</th><th class="n">크기</th></tr></thead><tbody>' + rowsB.map(([n, parts, sz]) =>
+      `<tr><td class="m">${n}</td><td><div style="display:flex;width:100%;height:18px;gap:1px">${parts.map(([b,l,c]) => `<div title="${l}" style="width:${b/32*100}%;background:${c};opacity:.8;border-radius:2px;font-size:10px;color:var(--panel);padding-left:3px;overflow:hidden;white-space:nowrap">${b}${l ? ' ' + l : ''}</div>`).join('')}</div></td><td class="n">${sz}</td></tr>`).join('') + '</tbody>';
+  }
+};
+
+/* ============================================================
+   S21 deploy practice
+   ============================================================ */
+hooks.s21 = {
+  init(){
+    const svg = $('#s21svg');
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    const B = [
+      ['CPU', '.bin 읽기', '[N,5] fp32', 'f-panel2', 'mut'],
+      ['CUDA 커널', '복셀화', '[V,5] fp16', 'f-teal-s', 'teal'],
+      ['libspconv', '3D Sparse 백본', '[256,180²] fp16', 'f-violet-s', 'violet'],
+      ['TensorRT', 'Neck + Head', '36 출력 fp16', 'f-heat-s', 'heat'],
+      ['CUDA + CPU', '디코드·정렬·NMS', '[K, 11]', 'f-teal-s', 'teal']
+    ];
+    B.forEach(([who, what, out, f, tc], i) => {
+      const x = i*164;
+      S('rect', {x, y:20, width:146, height:92, rx:5, class:f}, g1);
+      S('text', {x:x+10, y:42, class:tc, style:'font-weight:700;font-size:12.5px'}, g1, who);
+      S('text', {x:x+10, y:66, style:'font-size:13px'}, g1, what);
+      S('text', {x:x+10, y:98, class:'mono', style:'font-size:11px'}, g1, out);
+      if (i < 4) S('path', {d:`M${x+147} 66H${x+162}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g1);
+    });
+    S('text', {x:0, y:136, class:'mut', style:'font-size:11.5px'}, g1, '모델 파일: centerpoint.scn.onnx (libspconv가 로드) · rpn_centerhead_sim.onnx → trtexec --fp16 로 엔진 빌드');
+    // latency bars
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const x0 = 90, pxms = 700/40;
+    S('text', {x:0, y:176, style:'font-weight:700'}, g3, 'Orin 지연 (ms)');
+    const segs = [[1.36,'f-teal','복셀화'],[22.3,'f-violet','3D 백본'],[11.3,'f-heat','Neck+Head'],[4.4,'f-teal','디코드+NMS']];
+    const bar = (y, arr, label) => {
+      S('text', {x:0, y:y+17, class:'mono', style:'font-size:11.5px'}, g3, label);
+      let x = x0;
+      arr.forEach(([v,c]) => { S('rect', {x, y, width:v*pxms - 1, height:24, class:c, opacity:.85}, g3); x += v*pxms; });
+      S('text', {x:x+6, y:y+17, class:'mono', style:'font-size:11.5px'}, g3, arr.reduce((a,b) => a + b[0], 0).toFixed(1));
+    };
+    bar(190, segs, 'FP16');
+    bar(224, [[1.36,'f-teal'],[22.3,'f-violet'],[7.0,'f-heat'],[4.4,'f-teal']], 'INT8 헤드');
+    let lx = x0;
+    segs.forEach(([v,c,l]) => { if (v > 3) S('text', {x:lx + v*pxms/2, y:272, 'text-anchor':'middle', style:'font-size:11.5px'}, g3, `${l} ${v}`); lx += v*pxms; });
+    S('text', {x:x0, y:272, style:'font-size:11px', class:'teal'}, g3, '');
+    for (let t = 0; t <= 40; t += 10){ S('path', {d:`M${x0 + t*pxms} 256V262`, class:'s-mut'}, g3); S('text', {x:x0 + t*pxms, y:290, 'text-anchor':'middle', class:'mono mut', style:'font-size:10px'}, g3, String(t)); }
+    // memory bars
+    const g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    S('text', {x:0, y:326, style:'font-weight:700'}, g4, '고정 버퍼 (MB, 최대 크기 기준)');
+    const mem = [['점 [300k,5] fp32', 6.0], ['복셀 특징 [160k,5] fp16', 1.6], ['BEV [256,180²] fp16', 16.6], ['Neck 출력 [512,180²]', 33.2], ['Head 출력 70ch', 4.5]];
+    const pxmb = 480/35;
+    mem.forEach(([l, v], i) => {
+      const y = 340 + i*25;
+      S('text', {x:0, y:y+14, style:'font-size:11.5px'}, g4, l);
+      S('rect', {x:200, y, width:v*pxmb, height:17, rx:2, class: v > 30 ? 'f-heat' : 'f-violet', opacity:.8}, g4);
+      S('text', {x:206 + v*pxmb, y:y+13, class:'mono', style:'font-size:11px'}, g4, v.toFixed(1));
+    });
+  }
+};
+
+/* ============================================================
+   boot
+   ============================================================ */
+const start = (() => { const h = (location.hash || '').slice(1); const i = slides.findIndex(s => s.id === h); return i >= 0 ? i : 0; })();
+slides[0].classList.add('active');
+fit();
+go(start, 0);
+})();
+</script>

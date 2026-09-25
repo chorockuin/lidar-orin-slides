@@ -1,0 +1,2400 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CenterPoint on AGX Orin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#E9EDF1; --panel:#F8FAFB; --panel2:#E0E6EC; --ink:#131B25; --muted:#566271; --line:#C9D2DC;
+  --heat:#C0650F; --heat-soft:#F5DEC4; --teal:#0A807B; --teal-soft:#CBE9E6;
+  --violet:#5049C8; --violet-soft:#DDDCF7; --rose:#BE3A51; --rose-soft:#F5D7DD;
+  --code:#E2E8EE; --grid:#B7C2CE;
+  --shadow:0 1px 2px rgba(20,30,45,.08),0 10px 30px rgba(20,30,45,.07);
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1016; --panel:#111922; --panel2:#1A2531; --ink:#E3E9EF; --muted:#8C99A9; --line:#27333F;
+    --heat:#F2A24A; --heat-soft:#3B2A16; --teal:#3EC6BB; --teal-soft:#113230;
+    --violet:#9A96FA; --violet-soft:#25244C; --rose:#F07D8F; --rose-soft:#3C1C25;
+    --code:#16202B; --grid:#33414F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1016; --panel:#111922; --panel2:#1A2531; --ink:#E3E9EF; --muted:#8C99A9; --line:#27333F;
+  --heat:#F2A24A; --heat-soft:#3B2A16; --teal:#3EC6BB; --teal-soft:#113230;
+  --violet:#9A96FA; --violet-soft:#25244C; --rose:#F07D8F; --rose-soft:#3C1C25;
+  --code:#16202B; --grid:#33414F;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--heat);outline-offset:2px}
+
+/* ---------- app shell ---------- */
+#app{height:100%;display:grid;grid-template-rows:auto 1fr auto;padding-inline:16px}
+.topbar{display:flex;align-items:center;gap:18px;padding-block:10px;border-bottom:1px solid var(--line);min-width:0}
+.brand{font-weight:700;letter-spacing:.01em;white-space:nowrap;font-size:14px}
+.brand small{font-family:var(--mono);font-weight:400;color:var(--muted);margin-left:6px;font-size:11px}
+.pmap{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.pmap::-webkit-scrollbar{display:none}
+.pmap span{font-size:12px;padding:3px 9px;border-radius:3px;color:var(--muted);white-space:nowrap;border:1px solid transparent;position:relative}
+.pmap span+span::before{content:"";position:absolute;left:-5px;top:50%;width:4px;height:1px;background:var(--line)}
+.pmap span.here{color:var(--ink);border-color:var(--heat);background:var(--heat-soft);font-weight:500}
+.pmap span.done{color:var(--ink)}
+.themebtn{border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:3px 9px;font-size:12px;cursor:pointer}
+
+#viewport{position:relative;overflow:hidden;display:grid;place-items:center;min-height:0}
+#stage{width:1280px;height:720px;position:relative;transform-origin:center center;flex:none}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:26px 34px 18px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow);overflow:hidden}
+.slide.active{display:flex}
+.slide header{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--heat);white-space:nowrap}
+.slide h2{margin:0;font-size:30px;line-height:1.2;font-weight:700;text-wrap:balance;letter-spacing:-.01em}
+.slide h2 .sub{font-weight:400;color:var(--muted);font-size:18px;margin-left:10px}
+.cols{flex:1;display:grid;grid-template-columns:1.45fr 1fr;gap:28px;min-height:0}
+.cols.even{grid-template-columns:1fr 1fr}
+.cols.wide{grid-template-columns:1.9fr 1fr}
+.vis{position:relative;min-height:0;display:flex;flex-direction:column;gap:10px}
+.txt{min-height:0;display:flex;flex-direction:column;gap:10px;overflow:auto;padding-right:4px}
+.txt p{margin:0}
+.pt{padding-left:14px;border-left:2px solid var(--line);font-size:15.5px}
+.pt b{font-weight:700}
+.pt.why{border-left-color:var(--heat)}
+.pt.what{border-left-color:var(--teal)}
+.pt.shape{border-left-color:var(--violet)}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:3px;margin-right:6px;vertical-align:1px}
+.tag.what{background:var(--teal-soft);color:var(--teal)}
+.tag.why{background:var(--heat-soft);color:var(--heat)}
+.tag.shape{background:var(--violet-soft);color:var(--violet)}
+.tag.warn{background:var(--rose-soft);color:var(--rose)}
+code,.m{font-family:var(--mono);font-size:.88em}
+code{background:var(--code);padding:1px 5px;border-radius:3px}
+.eq{font-family:var(--mono);font-size:14px;background:var(--code);border-radius:4px;padding:8px 12px;line-height:1.6;white-space:pre;overflow-x:auto}
+.eq .hl{color:var(--heat);font-weight:600}
+.eq .c{color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.hl-heat{color:var(--heat);font-weight:600}
+.hl-teal{color:var(--teal);font-weight:600}
+.hl-violet{color:var(--violet);font-weight:600}
+.hl-rose{color:var(--rose);font-weight:600}
+.box{border:1px solid var(--line);border-radius:5px;padding:10px 12px;background:var(--bg)}
+canvas{display:block;max-width:100%}
+.cv{width:100%;flex:1;min-height:0;border-radius:5px;background:var(--bg);border:1px solid var(--line)}
+
+/* concept-first blocks */
+.q{font-size:17px;font-weight:500;line-height:1.45;padding:9px 14px 9px 44px;background:var(--heat-soft);border-radius:4px;position:relative;text-wrap:balance}
+.q::before{content:"Q";position:absolute;left:14px;top:7px;font-family:var(--mono);font-weight:600;font-size:18px;color:var(--heat)}
+.idea{font-size:15.5px;padding:8px 14px;border-radius:4px;background:var(--teal-soft)}
+.idea::before{content:"직관";font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--teal);margin-right:8px;font-weight:600}
+.impl{font-size:12.5px;line-height:1.5;padding:6px 10px;border:1px dashed var(--line);border-radius:4px;color:var(--muted)}
+.impl::before{content:"ORIN 구현";font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--violet);margin-right:8px;font-weight:600}
+.impl code{font-size:11.5px}
+
+/* fragments */
+.frag{opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease;pointer-events:none}
+.frag.on{opacity:1;transform:none;pointer-events:auto}
+svg .frag{transform:none}
+.frag.gone{display:none}
+.fade-out{transition:opacity .45s}
+.dimmed{opacity:.28!important}
+
+/* tables & matrices */
+table.t{border-collapse:collapse;font-size:13.5px;width:100%}
+table.t th,table.t td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+table.t th{font-weight:500;color:var(--muted);font-size:12px;letter-spacing:.03em}
+table.t td.n,table.t th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mat{display:inline-grid;gap:2px;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;padding:4px 8px;border-left:2px solid var(--ink);border-right:2px solid var(--ink);border-radius:3px}
+.mat span{padding:2px 6px;text-align:right;border-radius:2px;transition:background .3s}
+.mat span.hi{background:var(--heat-soft);color:var(--heat);font-weight:600}
+.mat span.hi2{background:var(--teal-soft);color:var(--teal);font-weight:600}
+.mat-wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mat-label{font-family:var(--mono);font-size:11.5px;color:var(--muted);text-align:center;margin-top:3px}
+.op{font-family:var(--mono);font-size:18px;color:var(--muted)}
+
+/* svg tokens */
+svg{max-width:100%;overflow:visible}
+svg text{fill:var(--ink);font-family:var(--sans);font-size:13px}
+svg text.mono{font-family:var(--mono);font-size:12px}
+svg text.mut{fill:var(--muted)}
+svg text.heat{fill:var(--heat)} svg text.teal{fill:var(--teal)} svg text.violet{fill:var(--violet)} svg text.rose{fill:var(--rose)}
+svg .s-line{stroke:var(--line)} svg .s-ink{stroke:var(--ink)} svg .s-mut{stroke:var(--muted)}
+svg .s-heat{stroke:var(--heat)} svg .s-teal{stroke:var(--teal)} svg .s-violet{stroke:var(--violet)} svg .s-rose{stroke:var(--rose)} svg .s-grid{stroke:var(--grid)}
+svg .f-panel{fill:var(--panel)} svg .f-bg{fill:var(--bg)} svg .f-panel2{fill:var(--panel2)} svg .f-none{fill:none}
+svg .f-heat{fill:var(--heat)} svg .f-heat-s{fill:var(--heat-soft)} svg .f-teal{fill:var(--teal)} svg .f-teal-s{fill:var(--teal-soft)}
+svg .f-violet{fill:var(--violet)} svg .f-violet-s{fill:var(--violet-soft)} svg .f-rose{fill:var(--rose)} svg .f-rose-s{fill:var(--rose-soft)} svg .f-ink{fill:var(--ink)} svg .f-mut{fill:var(--muted)}
+svg .mv{transition:transform .9s cubic-bezier(.6,.05,.3,1),opacity .5s}
+
+/* footer */
+.foot{display:flex;align-items:center;gap:12px;padding-block:8px;border-top:1px solid var(--line);font-size:13px}
+.foot button{border:1px solid var(--line);background:var(--panel);border-radius:4px;padding:4px 12px;cursor:pointer}
+.foot button:hover{border-color:var(--muted)}
+.foot button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.counter{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.dots{display:flex;gap:4px;align-items:center}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--heat)}
+.prog{flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden;min-width:40px}
+.prog b{display:block;height:100%;background:var(--heat);width:0;transition:width .3s}
+.hint{color:var(--muted);font-size:12px;white-space:nowrap}
+
+/* notes & toc panels */
+.panel{position:absolute;top:0;bottom:0;right:0;width:min(440px,100%);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);transform:translateX(102%);transition:transform .3s ease;overflow:auto;padding:20px 22px;z-index:5}
+.panel.open{transform:none}
+.panel h3{margin:0 0 4px;font-size:18px}
+.panel .ptitle{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--heat)}
+.panel p,.panel li{font-size:14.5px;max-width:62ch}
+.panel ul{padding-left:18px}
+.panel .close{position:absolute;right:14px;top:14px;border:1px solid var(--line);background:var(--bg);border-radius:4px;cursor:pointer;padding:2px 8px}
+.notes{display:none}
+#toc{left:0;right:auto;border-left:0;border-right:1px solid var(--line);transform:translateX(-102%)}
+#toc.open{transform:none}
+#toc ol{padding-left:0;list-style:none;margin:10px 0 0}
+#toc li button{display:flex;gap:10px;width:100%;text-align:left;background:none;border:0;padding:6px 8px;border-radius:4px;cursor:pointer;font-size:14px}
+#toc li button:hover{background:var(--bg)}
+#toc li button.cur{background:var(--heat-soft)}
+#toc li button span{font-family:var(--mono);color:var(--muted);width:22px;flex:none}
+
+/* misc components */
+.pipe{display:flex;align-items:stretch;gap:0}
+.chip{display:inline-block;padding:1px 8px;border-radius:3px;font-size:12px;border:1px solid var(--line);background:var(--bg)}
+.chip.teal{border-color:var(--teal);color:var(--teal)} .chip.violet{border-color:var(--violet);color:var(--violet)} .chip.heat{border-color:var(--heat);color:var(--heat)} .chip.rose{border-color:var(--rose);color:var(--rose)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap}
+.btnrow button{border:1px solid var(--line);background:var(--bg);border-radius:4px;padding:3px 10px;cursor:pointer;font-size:12.5px}
+.btnrow button.sel{border-color:var(--heat);background:var(--heat-soft);color:var(--heat)}
+.gloss{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 18px;font-size:13px}
+.gloss b{display:block;font-size:13.5px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+/* title slide */
+.title-wrap{position:absolute;left:34px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center;gap:16px;z-index:2}
+.title-wrap h1{font-size:56px;line-height:1.05;margin:0;letter-spacing:-.02em;font-weight:700}
+.title-wrap h1 em{font-style:normal;color:var(--heat)}
+.title-wrap .lede{font-size:19px;color:var(--muted);max-width:30ch;margin:0}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;color:var(--muted)}
+.keys kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 6px;background:var(--bg);color:var(--ink);justify-self:start}
+#cv-title{position:absolute;right:0;top:0;width:760px;height:100%}
+
+/* narrow screens: flow mode */
+body.flow #viewport{place-items:start stretch;overflow:auto}
+body.flow #stage{width:100%;height:auto;transform:none!important}
+body.flow .slide{position:relative;inset:auto;padding:18px 16px}
+body.flow .cols,body.flow .cols.even,body.flow .cols.wide{grid-template-columns:1fr}
+body.flow .slide h2{font-size:22px}
+body.flow .slide header{flex-direction:column;gap:2px}
+body.flow .title-wrap{position:relative;left:auto;width:100%;padding-block:10px}
+body.flow .title-wrap h1{font-size:36px}
+body.flow #cv-title{position:relative;width:100%;height:260px}
+body.flow .hint,body.flow .brand small{display:none}
+body.flow .cv{min-height:280px}
+body.flow .gloss{grid-template-columns:1fr 1fr}
+body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-ink"/></marker>
+    <marker id="ah-mut" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-mut"/></marker>
+    <marker id="ah-heat" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-heat"/></marker>
+    <marker id="ah-teal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-teal"/></marker>
+    <marker id="ah-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-violet"/></marker>
+    <marker id="ah-rose" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" class="f-rose"/></marker>
+  </defs>
+</svg>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">CenterPoint<small>AGX Orin · nuScenes</small></div>
+    <div class="pmap" id="pmap"></div>
+    <button class="themebtn" id="themebtn" type="button" aria-label="테마 전환">테마</button>
+  </div>
+
+  <main id="viewport">
+    <div id="stage">
+
+<!-- ============================ 1. 표지 ============================ -->
+<section class="slide" id="s1" data-stage="" data-title="표지" data-steps="1">
+  <canvas id="cv-title" width="1520" height="1440" aria-label="LiDAR 스캔 애니메이션"></canvas>
+  <div class="title-wrap">
+    <div class="eyebrow">NVIDIA CUDA-CenterPoint · Jetson AGX Orin</div>
+    <h1>점 구름에서<br>3D 박스까지,<br><em>CenterPoint</em></h1>
+    <p class="lede">물체를 상자가 아니라 "중심점"으로 찾는 LiDAR 3D 검출기. 원리와 이유를 한 단계씩 따라갑니다.</p>
+    <div class="keys">
+      <kbd>클릭 · → · Space</kbd><span>다음 단계</span>
+      <kbd>←</kbd><span>이전 단계</span>
+      <kbd>N</kbd><span>자세한 설명 (자습 노트)</span>
+      <kbd>T</kbd><span>목차</span>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>이 자료를 읽는 법</h3>
+    <p>슬라이드마다 <b>핵심 질문 → 직관 → 원리 → 수식과 텐서 모양 → Orin 구현</b> 순서로 진행합니다. 발표할 때는 화면의 그림과 짧은 문장만 쓰고, 자습할 때는 이 노트 패널(N)을 열어 자세한 설명을 읽으세요.</p>
+    <p>기준 모델은 NVIDIA <code>Lidar_AI_Solution/CUDA-CenterPoint</code>이며, 원본은 Yin et al., <i>Center-based 3D Object Detection and Tracking</i> (CVPR 2021)의 nuScenes VoxelNet 0.075 m 설정입니다. 모든 수치는 공식 저장소의 설정 파일, 소스, ONNX 그래프에서 확인했습니다.</p>
+    <p>오른쪽 그림은 실제 데이터가 아니라 설명용으로 만든 가상 장면입니다. 가운데가 자차(LiDAR), 회전하는 선이 레이저가 한 바퀴 도는 모습입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 2. 문제 정의 ============================ -->
+<section class="slide" id="s2" data-stage="" data-title="문제 정의" data-steps="4">
+  <header><span class="eyebrow">01 · 문제</span><h2>점 구름에서 "물체"를 찾는다는 것</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <canvas class="cv" id="cv-s2" width="1400" height="1100" aria-label="위에서 본 가상 LiDAR 포인트 클라우드"></canvas>
+      <div class="legend"><span><i style="background:#3b6fd0"></i>낮은 점</span><span><i style="background:#2bb3a8"></i>중간</span><span><i style="background:#f0a040"></i>높은 점</span><span class="frag" data-s="2"><i style="border:1.5px solid currentColor;background:none"></i>정답 박스</span></div>
+    </div>
+    <div class="txt">
+      <p class="q">LiDAR는 점 수십만 개를 줄 뿐이다. 여기서 "차 한 대"를 어떻게 알아보나?</p>
+      <p class="idea">LiDAR는 레이저로 주변을 훑어 "거리 측정 결과"를 점으로 남긴다. 사진처럼 가로세로 칸이 있지 않고, 점들이 공간에 흩뿌려져 있을 뿐이다.</p>
+      <div class="frag" data-s="1">
+        <p class="pt what"><b>어려움 ① 순서가 없다.</b> 점을 섞어도 같은 장면이다. 이미지처럼 "오른쪽 이웃 픽셀"이란 개념이 없다.</p>
+        <p class="pt what"><b>어려움 ② 대부분 비어 있다.</b> 공간 대부분은 아무것도 없는 허공이다.</p>
+        <p class="pt what"><b>어려움 ③ 거리마다 밀도가 다르다.</b> 가까운 물체엔 점이 빽빽하고, 먼 물체엔 몇 개뿐이다.</p>
+      </div>
+      <div class="frag" data-s="2">
+        <p class="pt shape"><b>출력:</b> 물체마다 3D 박스 하나 — 중심 <code>x,y,z</code>, 크기 <code>w,l,h</code>, 방향 <code>yaw</code>, 속도 <code>vx,vy</code>, 그리고 클래스와 점수.</p>
+      </div>
+      <div class="frag" data-s="3">
+        <p class="pt shape"><b>텐서로 쓰면</b> 입력 <code>[N, 5]</code> (N ≈ 27만) → 출력 <code>[K, 11]</code> (K = 검출된 물체 수). 클래스는 nuScenes 10종: 승용차, 트럭, 공사차량, 버스, 트레일러, 방호벽, 오토바이, 자전거, 보행자, 콘.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>왜 LiDAR 검출이 이미지 검출과 다른가</h3>
+    <p>이미지는 H×W 격자에 빈틈없이 값이 채워진 "조밀한(dense)" 데이터라 합성곱(CNN)이 바로 동작합니다. 포인트 클라우드는 (x, y, z, …) 좌표들의 <b>집합</b>입니다. 집합이므로 순서가 의미 없고(permutation invariant), 좌표가 실수라 정해진 칸이 없습니다.</p>
+    <p>그래서 LiDAR 검출기의 첫 번째 숙제는 "이 불규칙한 점들을 신경망이 다룰 수 있는 규칙적인 형태로 바꾸는 것"입니다. CenterPoint(VoxelNet 버전)는 이를 <b>복셀화(3D 격자에 담기)</b>로 해결합니다. 다른 계열로는 점을 직접 다루는 PointNet 계열, 기둥(pillar)으로 묶는 PointPillars가 있습니다.</p>
+    <p>두 번째 숙제는 <b>희소성</b>입니다. 108 m × 108 m × 8 m 공간을 7.5 cm 칸으로 나누면 8천만 칸이 넘지만 점이 들어 있는 칸은 약 10만 개(0.13%)뿐입니다. 이 사실이 뒤에서 Sparse Convolution을 쓰는 이유가 됩니다.</p>
+    <p>세 번째로 <b>출력이 방향을 가진 3D 박스</b>라는 점입니다. 이미지 검출은 대개 축에 정렬된 2D 상자면 되지만, 자율주행에서는 차가 어느 쪽을 보고 있는지(yaw), 얼마나 빠르게 움직이는지(velocity)까지 알아야 합니다.</p>
+    <p>출력 11개 값은 CUDA-CenterPoint 기준으로 <code>x, y, z, w, l, h, vx, vy, yaw, label, score</code> 순서입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 3. 핵심 아이디어 ============================ -->
+<section class="slide" id="s3" data-stage="" data-title="핵심 아이디어: 중심점" data-steps="5">
+  <header><span class="eyebrow">02 · 핵심 아이디어</span><h2>물체를 "상자"가 아니라 "중심점"으로 찾는다</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg viewBox="0 0 700 450" role="img" aria-label="Anchor 방식과 Center 방식 비교">
+        <!-- left: anchor -->
+        <rect x="0" y="0" width="340" height="450" rx="5" class="f-bg s-line"/>
+        <text x="16" y="26" style="font-weight:700">Anchor 기반</text>
+        <text x="16" y="44" class="mut small" style="font-size:12px">SECOND, PointPillars 등</text>
+        <g class="s-grid" stroke-width="1">
+          <path d="M20 60H320M20 120H320M20 180H320M20 240H320M20 300H320M20 360H320M20 420H320" fill="none"/>
+          <path d="M20 60V420M80 60V420M140 60V420M200 60V420M260 60V420M320 60V420" fill="none"/>
+        </g>
+        <g transform="translate(170 270) rotate(-40)"><rect x="-65" y="-27" width="130" height="54" rx="6" class="f-teal-s s-teal" stroke-width="2"/><path d="M40 -27V27" class="s-teal" stroke-width="1.5"/></g>
+        <g class="frag" data-s="1">
+          <rect x="105" y="243" width="130" height="54" class="f-none s-violet" stroke-width="2" stroke-dasharray="6 4"/>
+          <rect x="143" y="205" width="54" height="130" class="f-none s-violet" stroke-width="2" stroke-dasharray="6 4"/>
+          <g opacity=".35">
+            <rect x="45" y="123" width="130" height="54" class="f-none s-violet" stroke-dasharray="5 4"/>
+            <rect x="83" y="85" width="54" height="130" class="f-none s-violet" stroke-dasharray="5 4"/>
+            <rect x="225" y="363" width="70" height="30" class="f-none s-violet" stroke-dasharray="5 4"/>
+            <rect x="245" y="343" width="30" height="70" class="f-none s-violet" stroke-dasharray="5 4"/>
+          </g>
+          <text x="16" y="440" class="violet" style="font-size:12.5px">모든 칸 × 클래스별 크기 × 0°/90° 상자를 미리 깔아 둔다</text>
+        </g>
+        <g class="frag" data-s="2">
+          <rect x="190" y="120" width="140" height="44" rx="4" class="f-rose-s"/>
+          <text x="200" y="138" class="rose" style="font-size:12.5px">기울어진 차와</text>
+          <text x="200" y="155" class="rose" style="font-size:12.5px">딱 맞는 상자가 없다</text>
+        </g>
+        <!-- right: center -->
+        <rect x="360" y="0" width="340" height="450" rx="5" class="f-bg s-line"/>
+        <text x="376" y="26" style="font-weight:700">Center 기반</text>
+        <text x="376" y="44" class="mut" style="font-size:12px">CenterPoint</text>
+        <g class="s-grid" stroke-width="1">
+          <path d="M380 60H680M380 120H680M380 180H680M380 240H680M380 300H680M380 360H680M380 420H680" fill="none"/>
+          <path d="M380 60V420M440 60V420M500 60V420M560 60V420M620 60V420M680 60V420" fill="none"/>
+        </g>
+        <g transform="translate(530 270) rotate(-40)"><rect x="-65" y="-27" width="130" height="54" rx="6" class="f-teal-s s-teal" stroke-width="2"/><path d="M40 -27V27" class="s-teal" stroke-width="1.5"/></g>
+        <g class="frag" data-s="3">
+          <circle cx="530" cy="270" r="62" class="f-heat" opacity=".10"/>
+          <circle cx="530" cy="270" r="42" class="f-heat" opacity=".18"/>
+          <circle cx="530" cy="270" r="24" class="f-heat" opacity=".32"/>
+          <circle cx="530" cy="270" r="8" class="f-heat"/>
+          <text x="545" y="330" class="heat" style="font-size:12.5px">① 여기가 중심이다 (봉우리)</text>
+          <path d="M530 270L614 199.5" class="s-ink" stroke-width="2" marker-end="url(#ah-ink)"/>
+          <text x="600" y="186" style="font-size:12.5px">속도 v</text>
+          <path d="M572 270A42 42 0 0 0 562.2 243" class="f-none s-heat" stroke-width="2"/>
+          <text x="578" y="258" class="heat" style="font-size:12.5px">θ</text>
+          <text x="376" y="440" style="font-size:12.5px">② 그 점에서 크기·방향·높이·속도를 읽어낸다</text>
+        </g>
+      </svg>
+    </div>
+    <div class="txt">
+      <p class="q">"상자"를 찾는 대신 "중심점"을 찾으면 무엇이 좋아지나?</p>
+      <p class="idea">사람도 차를 볼 때 "저기 차가 있다"를 먼저 알고, 크기와 방향은 그다음에 본다. 위치(점)와 속성을 나눠 생각하는 것이다.</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>Anchor 방식:</b> 격자 모든 칸에 미리 정한 상자(anchor)를 깔고 "이 상자와 얼마나 겹치나"를 점수로 매긴다.</p></div>
+      <div class="frag" data-s="2"><p class="pt why"><b>문제:</b> 차는 아무 방향으로나 기울어 있다. 0°/90° 상자로는 잘 안 맞아 학습 신호가 흐려지고, 클래스마다 상자 크기·개수를 사람이 설계해야 한다.</p></div>
+      <div class="frag" data-s="3"><p class="pt what"><b>Center 방식:</b> "중심일 확률"을 지도(heatmap)로 예측하고, 봉우리(peak) 위치에서 박스 속성을 회귀로 읽는다.</p></div>
+      <div class="frag" data-s="4">
+        <p class="pt why"><b>이점 ① 회전에 무관하다.</b> 점에는 방향이 없어서, 차가 어느 쪽을 봐도 똑같이 찾는다.</p>
+        <p class="pt why"><b>이점 ② 설계할 것이 적다.</b> anchor 크기·비율·IoU 기준 같은 수작업 설정이 사라진다.</p>
+        <p class="pt why"><b>이점 ③ 추적이 쉽다.</b> 물체가 점 하나이므로, 속도로 옮긴 뒤 가장 가까운 점끼리 이으면 된다 (19장).</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Anchor vs Center — 발상의 차이</h3>
+    <p><b>Anchor 기반</b> 검출기(SECOND, PointPillars 등)는 BEV 격자 각 칸에 클래스별 평균 크기의 상자를 0°와 90° 두 방향으로 놓습니다. 정답 박스와 IoU가 높은 anchor를 양성으로 정해 "이 anchor가 물체인가"와 "anchor에서 얼마나 보정할까"를 학습합니다.</p>
+    <p>문제는 3D 물체가 <b>임의의 방향</b>을 갖는다는 것입니다. 45° 기울어진 긴 차는 0°, 90° anchor 어느 쪽과도 IoU가 낮아, 양성과 음성의 경계가 애매해집니다. 방향마다 anchor를 더 두면 계산과 설계가 폭발합니다.</p>
+    <p><b>CenterPoint</b>는 이미지 검출기 CenterNet의 발상을 3D로 옮겼습니다. 물체를 BEV 위의 <b>중심점 하나</b>로 표현하고, 신경망은 두 가지를 예측합니다.</p>
+    <ul><li>클래스별 heatmap: 각 칸이 어떤 클래스 물체의 중심일 확률</li><li>회귀 맵: 각 칸에서 본 박스 속성(오프셋, 높이, 크기, 방향, 속도)</li></ul>
+    <p>점은 회전해도 점이므로 검출 단계가 회전에 영향을 받지 않고, 방향은 회귀가 따로 맡습니다. 이 "위치와 속성의 분리"가 CenterPoint의 핵심 발상입니다.</p>
+    <p>또 하나의 장점은 <b>추적</b>입니다. 물체가 점이면 두 프레임의 물체를 잇는 문제가 "가까운 점끼리 짝짓기"로 단순해집니다. 원 논문 제목에 "and Tracking"이 붙은 이유입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 4. 전체 흐름 ============================ -->
+<section class="slide" id="s4" data-stage="" data-title="전체 흐름" data-steps="9">
+  <header><span class="eyebrow">03 · 지도</span><h2>입력에서 출력까지 7단계</h2></header>
+  <p class="q" style="margin-bottom:14px">흩어진 점들이 어떤 과정을 거쳐 박스 목록이 되나? 각 단계는 무엇을 맡나?</p>
+  <div class="vis" style="flex:1">
+    <svg viewBox="0 0 1210 300" role="img" aria-label="CenterPoint 파이프라인 7단계">
+      <g id="s4nodes"></g>
+      <g class="frag" data-s="8" id="s4bands"></g>
+    </svg>
+    <div class="frag" data-s="8" style="display:flex;gap:26px;align-items:baseline;flex-wrap:wrap">
+      <p class="idea" style="flex:1;min-width:300px">큰 흐름은 <b>3D 점 → 3D 격자 → 2D 지도 → 중심점 → 박스</b>. 불규칙한 데이터를 점점 규칙적이고 다루기 쉬운 형태로 바꾼 뒤, 마지막에 "중심점" 표현으로 답을 낸다.</p>
+      <p class="impl" style="flex:1;min-width:300px">Orin에서는 단계마다 실행기가 다르다: 복셀화·후처리는 CUDA 커널, 3D Sparse 백본은 libspconv, Neck+Head는 TensorRT 엔진. 아래 숫자는 공식 README의 Orin 평균 지연(ms).</p>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>한 문장씩 요약한 7단계</h3>
+    <ol>
+      <li><b>점 구름</b> <code>[N,5]</code>: 10개 sweep을 합친 점. 채널은 x, y, z, 반사 강도, 시간차.</li>
+      <li><b>복셀화</b>: 7.5 cm × 7.5 cm × 20 cm 칸(복셀)에 점을 담고 칸마다 점들의 평균을 낸다 → 점이 있는 칸 V개만 <code>[V,5]</code>로 남긴다.</li>
+      <li><b>3D Sparse 백본</b>: 비어 있지 않은 칸에서만 3D 합성곱을 해서 3D 모양 특징을 뽑는다. 해상도는 1/8, 높이는 41→2로 줄고 채널은 5→128로 는다.</li>
+      <li><b>BEV 변환</b>: 높이 축을 채널로 펼쳐 "위에서 내려다본 지도" <code>[256,180,180]</code>로 만든다. 한 칸 = 0.6 m.</li>
+      <li><b>Neck</b>: 2D 합성곱으로 넓은 문맥(큰 물체)과 세밀한 정보(작은 물체)를 합친다 → <code>[512,180,180]</code>.</li>
+      <li><b>CenterHead</b>: 클래스 그룹 6개마다 "중심 확률 지도"와 박스 속성 지도를 낸다.</li>
+      <li><b>후처리</b>: 확률이 높은 칸에서 박스를 복원하고 겹치는 박스를 지운다(NMS).</li>
+    </ol>
+    <p>1~3단계가 "불규칙한 3D 데이터를 다루는 부분", 4~6단계가 "평범한 2D CNN 검출기", 7단계가 "답을 정리하는 부분"입니다. CenterPoint는 이미지 검출기(CenterNet)의 검증된 구조를 쓰기 위해 앞단에서 3D를 BEV 2D로 바꿉니다.</p>
+    <p>Orin 지연(README, nuScenes val 평균): 복셀화 1.36 ms, 3D 백본 22.3 ms, RPN+Head 11.3 ms(FP16, INT8이면 7.0 ms), 디코드+NMS 4.4 ms, 합계 약 40 ms(≈ 23~25 FPS). 3D 백본이 가장 무겁습니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 5. 입력 ============================ -->
+<section class="slide" id="s5" data-stage="input" data-title="입력: 점과 시간" data-steps="6">
+  <header><span class="eyebrow">04 · 입력</span><h2>점 하나에 담긴 5개 숫자, 그리고 시간</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <canvas class="cv" id="cv-s5" width="1400" height="1100" aria-label="여러 sweep이 누적된 움직이는 차"></canvas>
+      <div class="legend" id="s5legend"><span><i style="background:var(--heat)"></i>현재 sweep (Δt = 0)</span><span class="frag" data-s="4"><i style="background:var(--violet)"></i>과거 sweep (Δt 최대 ≈ 0.45 s)</span></div>
+    </div>
+    <div class="txt">
+      <p class="q">왜 한 순간의 스캔이 아니라 여러 번의 스캔을 겹치고, 점마다 "시간"을 붙이나?</p>
+      <div class="frag" data-s="1">
+        <p class="pt shape"><b>점 1개 = 5개 숫자</b></p>
+        <div class="mat-wrap"><div class="mat" style="grid-template-columns:repeat(5,auto)"><span>12.34</span><span>−3.21</span><span>0.57</span><span>12</span><span>0.00</span></div></div>
+        <p class="small muted m">x(m) · y(m) · z(m) · intensity(반사 강도) · Δt(s)</p>
+      </div>
+      <div class="frag" data-s="2"><p class="pt shape"><b>한 프레임 = 행렬 <code>[N, 5]</code></b>. 예: N = 267,057 → fp32로 약 5.3 MB. 행의 순서에는 의미가 없다.</p></div>
+      <div class="frag" data-s="3"><p class="pt what"><b>한 번의 스캔(sweep)은 듬성듬성하다.</b> nuScenes의 32채널 LiDAR는 먼 물체에 점을 몇 개밖에 못 찍는다.</p></div>
+      <div class="frag" data-s="4"><p class="pt what"><b>그래서 과거 10개 sweep(약 0.5초)을 현재 좌표계로 옮겨 겹친다.</b> 점이 많아져 모양이 또렷해진다.</p></div>
+      <div class="frag" data-s="5">
+        <p class="pt why"><b>Δt 채널이 있어야</b> 신경망이 "어느 점이 과거의 것인가"를 구분한다. 움직이는 차는 꼬리가 생기는데, 꼬리의 길이와 방향이 곧 <b>속도</b>의 단서가 된다. 한 장의 스캔만으로는 속도를 알 수 없다.</p>
+        <p class="impl">CUDA-CenterPoint는 이미 누적된 <code>[N,5]</code> fp32 배열(.bin)을 입력으로 받는다. 최대 300,000점.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Multi-sweep과 시간 채널</h3>
+    <p>nuScenes LiDAR는 20 Hz로 회전하고, 정답 라벨은 2 Hz 키프레임에만 있습니다. CenterPoint는 키프레임 하나에 직전 9개 sweep을 더해 <b>총 10 sweep</b>을 씁니다(<code>nsweeps=10</code>).</p>
+    <p>과거 sweep의 점은 자차가 움직인 만큼(ego-motion) 좌표 변환을 해서 현재 프레임 좌표로 옮깁니다. 그러면 <b>정지한 물체</b>는 같은 자리에 점이 쌓여 더 조밀해지고, <b>움직이는 물체</b>는 이동 경로를 따라 꼬리가 생깁니다.</p>
+    <p>여기서 5번째 채널 <b>Δt(time lag)</b>가 중요합니다. 키프레임 점은 0, 과거 점은 몇 초 전인지가 들어갑니다. 이 값이 없으면 신경망은 꼬리가 "긴 물체"인지 "움직인 물체"인지 구분할 수 없습니다. Δt가 있어야 속도(vx, vy)를 예측할 수 있고, 속도는 뒤에서 추적의 핵심이 됩니다.</p>
+    <p>intensity는 레이저가 반사된 세기로, 재질(번호판, 차선, 표지판처럼 반사가 강한 것)을 구분하는 단서입니다.</p>
+    <p>예시 행 <code>[12.34, −3.21, 0.57, 12, 0.00]</code>은 설명용 값이며, 다음 슬라이드의 복셀 계산에서 이어서 씁니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 6. 복셀화 ① ============================ -->
+<section class="slide" id="s6" data-stage="voxel" data-title="복셀화 ① 격자에 담기" data-steps="6">
+  <header><span class="eyebrow">05 · 복셀화</span><h2>흩어진 점을 모눈종이 위에 올린다</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg viewBox="0 0 660 470" role="img" aria-label="복셀 격자 확대도">
+        <text x="60" y="18" class="mono mut">12.000 m</text>
+        <text x="620" y="18" class="mono mut" text-anchor="end">12.750 m</text>
+        <g id="s6grid"></g>
+        <g id="s6pts"></g>
+        <g class="frag" data-s="3">
+          <rect x="284" y="198" width="56" height="56" class="f-heat-s s-heat" stroke-width="2.5"/>
+          <path d="M313.9 242.8V422" class="s-heat" stroke-dasharray="4 4"/>
+          <path d="M313.9 242.8H60" class="s-heat" stroke-dasharray="4 4"/>
+          <rect x="348" y="150" width="190" height="40" rx="4" class="f-panel s-heat"/>
+          <text x="358" y="175" class="mono heat" style="font-size:14px;font-weight:600">(ix, iy, iz) = (884, 677, 27)</text>
+        </g>
+        <circle cx="313.9" cy="242.8" r="6" class="f-rose"/>
+        <text x="322" y="238" class="rose mono" style="font-size:11px">p</text>
+        <text x="340" y="462" class="mut" text-anchor="middle" style="font-size:12px">x 방향 칸 번호 ix  (1칸 = 0.075 m)</text>
+      </svg>
+    </div>
+    <div class="txt">
+      <p class="q">CNN은 규칙적인 격자(이미지) 위에서만 동작한다. 좌표가 제각각인 점들을 어떻게 격자로 바꾸나?</p>
+      <div class="frag" data-s="1">
+        <p class="idea">모눈종이 위에 모래를 뿌린다고 생각하자. 모래알이 정확히 어디 떨어졌든, "몇 번째 칸에 들어갔나"만 세면 규칙적인 표가 된다.</p>
+        <p class="pt shape"><b>관심 영역</b> x, y ∈ [−54, 54] m, z ∈ [−5, 3] m<br><b>칸 크기</b> 0.075 × 0.075 × 0.2 m<br>→ <b>격자</b> 108/0.075 = <b>1440</b>, 1440, 8/0.2 = <b>40</b>칸</p>
+      </div>
+      <div class="frag" data-s="2"><div class="eq">ix = ⌊(x − x_min) / 0.075⌋
+iy = ⌊(y − y_min) / 0.075⌋
+iz = ⌊(z − z_min) / 0.2  ⌋</div></div>
+      <div class="frag" data-s="3"><div class="eq">ix = ⌊(12.34 + 54) / 0.075⌋ = ⌊884.53⌋ = <span class="hl">884</span>
+iy = ⌊(−3.21 + 54) / 0.075⌋ = ⌊677.20⌋ = <span class="hl">677</span>
+iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div></div>
+      <div class="frag" data-s="4"><p class="pt why"><b>왜 7.5 cm인가?</b> 칸이 작을수록 모양이 정밀하지만 칸 수(= 계산량)가 세제곱으로 는다. 칸이 크면 빠르지만 보행자 같은 작은 물체가 뭉개진다. 0.075 m는 nuScenes에서 정확도가 가장 좋았던 설정(0.1 m 버전보다 정확)이다. 높이 방향은 정밀도가 덜 중요해서 0.2 m로 거칠게 나눈다.</p></div>
+      <div class="frag" data-s="5"><p class="impl">GPU에서는 점 하나당 스레드 하나가 이 식을 계산하고, 칸 번호 <code>z·1440·1440 + y·1440 + x</code>를 해시 테이블 키로 써서 "처음 보는 칸"에 새 번호(0, 1, 2, …)를 매긴다. 8천만 칸 전체 배열을 만들지 않기 위한 방법이다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>복셀화 = "좌표를 정수 칸 번호로 양자화"</h3>
+    <p>복셀(voxel)은 volume + pixel, 즉 3D 픽셀입니다. 점 좌표를 칸 크기로 나누고 내림(floor)하면 그 점이 속한 칸의 정수 번호가 나옵니다. 관심 영역 밖의 점(예: 60 m 밖)은 버립니다.</p>
+    <p><b>격자 크기 계산:</b> x 폭 54 − (−54) = 108 m, 108 / 0.075 = 1440칸. z 폭 3 − (−5) = 8 m, 8 / 0.2 = 40칸. 전체 1440 × 1440 × 40 = 82,944,000칸.</p>
+    <p><b>칸 크기의 트레이드오프.</b> 칸을 절반으로 줄이면 3D 칸 수는 8배(2³)가 됩니다. 원 저장소에는 0.1 m와 0.075 m 두 설정이 있고, 0.075 m가 정확도는 더 높지만 느립니다. NVIDIA는 정확도가 높은 0.075 m 버전을 Orin용으로 최적화했습니다.</p>
+    <p><b>spconv의 z 크기가 41인 이유.</b> 원 코드(SpMiddleResNetFHD)는 입력 shape에 z 방향으로 1을 더해 [41, 1440, 1440]으로 씁니다. 이후 stride-2 합성곱을 거쳐 41→21→11→5→2가 되도록 맞춘 것입니다.</p>
+    <p><b>해시 테이블을 쓰는 이유.</b> 8천만 칸짜리 배열에 "이 칸의 복셀 번호"를 저장하면 메모리 낭비입니다. 점이 있는 칸은 약 10만 개뿐이라, 칸 번호를 키로 하는 GPU 해시 테이블(<code>atomicCAS</code>로 충돌 없이 삽입)로 "칸 번호 → 압축된 복셀 번호 0…V−1"을 만듭니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 7. 복셀화 ② ============================ -->
+<section class="slide" id="s7" data-stage="voxel" data-title="복셀화 ② 요약과 희소성" data-steps="7">
+  <header><span class="eyebrow">05 · 복셀화</span><h2>한 칸을 숫자 5개로 요약하고, 빈칸은 버린다</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <div class="box">
+        <p class="small muted" style="margin:0 0 6px">복셀 (884, 677, 27) 에 들어간 점 4개</p>
+        <div class="mat-wrap">
+          <div>
+            <div class="mat" id="s7pts" style="grid-template-columns:repeat(5,auto)">
+              <span>12.34</span><span>−3.21</span><span>0.57</span><span>12</span><span>0.00</span>
+              <span>12.31</span><span>−3.18</span><span>0.45</span><span>10</span><span>0.00</span>
+              <span>12.36</span><span>−3.16</span><span>0.52</span><span>15</span><span>0.05</span>
+              <span>12.33</span><span>−3.20</span><span>0.48</span><span>11</span><span>0.10</span>
+            </div>
+            <div class="mat-label">[k = 4, 5]  x · y · z · i · Δt</div>
+          </div>
+          <div class="frag" data-s="2" style="display:flex;align-items:center;gap:10px">
+            <span class="op">→ 열 평균 →</span>
+            <div><div class="mat" style="grid-template-columns:repeat(5,auto)"><span class="hi">12.335</span><span class="hi">−3.188</span><span class="hi">0.505</span><span class="hi">12.0</span><span class="hi">0.038</span></div><div class="mat-label">[1, 5]  이 복셀의 특징</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="frag" data-s="5">
+        <div class="box" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+          <div><div class="mat" style="grid-template-columns:repeat(5,auto)"><span>…</span><span>…</span><span>…</span><span>…</span><span>…</span></div><div class="mat-label">features [V, 5] fp16</div></div>
+          <div><div class="mat" style="grid-template-columns:repeat(4,auto)"><span>0</span><span>27</span><span>677</span><span>884</span></div><div class="mat-label">indices [V, 4] int32 (b, z, y, x)</div></div>
+          <p class="small" style="margin:0;flex:1;min-width:180px">"무엇이" 있는지(특징)와 "어디에" 있는지(좌표)를 따로 들고 다닌다. 이것이 희소 텐서의 표현법이다.</p>
+        </div>
+      </div>
+      <div class="frag" data-s="6" style="display:flex;gap:14px;align-items:center">
+        <canvas id="cv-s7" width="640" height="220" style="width:320px;height:110px;border:1px solid var(--line);border-radius:4px;background:var(--bg)" aria-label="1000칸 중 1.3칸만 채워진 희소성 그림"></canvas>
+        <p class="small" style="margin:0">예시 프레임: 점 267,057개 → 복셀 106,004개.<br>전체 82,944,000칸 중 <b class="hl-heat">0.13%</b>. 1000칸 중 1.3칸만 차 있다.</p>
+      </div>
+    </div>
+    <div class="txt">
+      <p class="q">한 칸에 점이 여러 개 들어가면 어떻게 하나? 그리고 칸 대부분이 비어 있다면?</p>
+      <div class="frag" data-s="1"><p class="pt what">칸마다 점 개수가 다르다(0개, 1개, 7개…). 신경망에는 <b>칸마다 같은 길이의 벡터</b>가 필요하다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>답: 평균을 낸다.</b> 점 k개의 <code>[k,5]</code>를 열마다 평균 내어 <code>[1,5]</code> 하나로 요약한다. 학습할 가중치가 없는 단순 연산이다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>왜 평균으로 충분한가?</b> 7.5 cm 칸 안의 세부 모양은 어차피 작다. 평균은 점 순서와 무관하고(순서 없음 문제 해결), 계산이 거의 공짜다. 모양을 이해하는 일은 뒤의 3D 합성곱이 이웃 칸들을 보며 맡는다.</p></div>
+      <div class="frag" data-s="4"><p class="pt why"><b>상한: 칸당 10점, 복셀 160,000개.</b> GPU 메모리를 미리 고정 크기로 잡아 두기 위해서다. 실시간 시스템에서는 "최악의 경우에도 넘치지 않는" 고정 버퍼가 동적 할당보다 빠르고 안전하다.</p></div>
+      <div class="frag" data-s="6"><p class="pt why"><b>99.87%가 빈칸.</b> 빈칸까지 합성곱하면 계산 대부분이 0에 0을 곱하는 낭비다. → 다음 장: <b>Sparse Convolution</b></p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Voxel Feature Encoding (평균)</h3>
+    <p>원 CenterPoint(det3d)의 <code>VoxelFeatureExtractorV3</code>는 복셀 안 점들의 5개 채널을 단순 평균합니다. VoxelNet 원 논문은 PointNet으로 복셀 특징을 "학습"했지만, CenterPoint 계열은 칸을 작게(7.5 cm) 잡고 평균만 내는 방식으로 충분한 정확도를 얻었습니다.</p>
+    <p>계산 예: x 평균 = (12.34 + 12.31 + 12.36 + 12.33) / 4 = 49.34 / 4 = 12.335, z 평균 = 2.02 / 4 = 0.505, Δt 평균 = 0.15 / 4 = 0.0375.</p>
+    <p><b>평균의 성질.</b> 점 순서를 바꿔도 결과가 같으므로(permutation invariant), 2장에서 말한 "순서 없음" 문제가 이 단계에서 해결됩니다.</p>
+    <p><b>출력 표현.</b> 희소 텐서는 두 배열로 표현합니다.</p>
+    <ul><li><code>features [V,5]</code>: 복셀마다 특징 벡터 (CUDA-CenterPoint는 FP16으로 변환)</li><li><code>indices [V,4]</code>: 복셀마다 (batch, z, y, x) 칸 번호</li></ul>
+    <p>"값이 0이 아닌 곳의 값과 위치만 저장한다"는 점에서 희소 행렬의 COO 형식과 같은 아이디어입니다.</p>
+    <p><b>Orin 구현.</b> <code>preprocess_kernels.cu</code>의 세 커널이 이 장과 앞 장의 내용을 처리합니다: <code>buildHashKernel</code>(칸 번호 해시), <code>voxelizationKernel</code>(칸마다 최대 10점 모으기), <code>featureExtractionKernel</code>(평균, FP16 변환). 전부 합쳐 Orin에서 약 1.4 ms입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 8. Sparse Conv ① ============================ -->
+<section class="slide" id="s8" data-stage="sparse" data-title="Sparse Conv ① 원리" data-steps="7">
+  <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>빈칸은 계산하지 않는 합성곱</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <div class="btnrow" aria-hidden="true" style="pointer-events:none"><span class="chip" id="s8mode">입력</span><span class="chip heat" id="s8count">계산 위치 0</span></div>
+      <svg id="s8svg" viewBox="0 0 520 520" role="img" aria-label="희소 격자 위 합성곱 비교" style="flex:1;min-height:0"></svg>
+      <div class="legend"><span><i style="background:var(--teal)"></i>값이 있는 칸 (입력)</span><span><i style="background:var(--heat)"></i>출력이 계산되는 칸</span><span><i style="border:2px solid var(--ink);background:none"></i>3×3 커널</span></div>
+    </div>
+    <div class="txt">
+      <p class="q">칸 대부분이 비어 있는 격자에 보통 합성곱을 하면 어떻게 되나? 빈칸을 건너뛸 수 있나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>일반(dense) 합성곱:</b> 커널이 모든 칸을 훑는다. 계산 대부분이 빈칸이고, 결과는 값이 사방으로 번져 <b>빈칸이 사라진다</b>.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>Sparse Conv:</b> 커널이 값이 있는 칸에 <b>닿는 위치에서만</b> 계산한다. 계산은 줄지만 출력 칸은 여전히 주변으로 한 칸씩 번진다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why">층을 쌓을수록 번짐이 누적된다(2층이면 두 칸). 수십 층을 쌓으면 결국 다시 조밀해진다.</p></div>
+      <div class="frag" data-s="4"><p class="pt why"><b>Submanifold(SubM) Conv:</b> "출력은 입력이 있던 칸에서만" 계산한다. 몇 층을 쌓아도 <b>희소성이 그대로 유지</b>된다. 물체 표면(manifold) 위에서만 정보를 주고받는다는 뜻이다.</p></div>
+      <div class="frag" data-s="5"><p class="pt what"><b>stride-2 Sparse Conv:</b> 2×2(3D에선 2×2×2) 칸을 한 칸으로 묶어 해상도를 절반으로 줄인다. 넓은 범위를 보게 해 주는 단계다.</p></div>
+      <div class="frag" data-s="6">
+        <p class="pt why"><b>설계:</b> 같은 해상도 안에서는 SubM으로 희소성을 지키며 특징을 다듬고, 해상도를 줄일 때만 stride-2 Sparse Conv로 주변을 넓게 합친다.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Dense, Sparse, Submanifold 합성곱</h3>
+    <p><b>Dense conv</b>는 출력 격자의 모든 위치에서 커널 크기만큼의 이웃과 곱셈-덧셈을 합니다. 1440×1440×41 격자에 3×3×3 커널이면 위치 8,500만 개 × 27회로, 대부분이 0 × 가중치입니다.</p>
+    <p><b>Sparse conv</b>(일반)는 "입력에 값이 있는 칸이 커널 범위 안에 하나라도 있는" 출력 위치에서만 계산합니다. 계산량은 줄지만, 출력 활성 칸이 입력보다 커널 반경만큼 넓어집니다(팽창, dilation).</p>
+    <p><b>Submanifold sparse conv</b>(Graham et al., 2018)는 출력 위치를 "입력 활성 칸과 같은 곳"으로 고정합니다. LiDAR 점은 물체 표면(2D 곡면 = manifold)에만 있는데, 일반 sparse conv를 여러 번 하면 이 얇은 표면이 두꺼워져 계산이 늘어납니다. SubM은 표면 두께를 유지합니다.</p>
+    <p><b>그럼 SubM만 쓰면?</b> 서로 떨어진 표면 조각은 영원히 정보를 주고받지 못합니다. 그래서 스테이지 사이마다 stride-2 sparse conv로 해상도를 줄이며 주변 칸을 합칩니다. 해상도가 절반이 되면 3×3 커널이 원래 격자 기준으로 두 배 넓은 범위를 봅니다.</p>
+    <p>CenterPoint의 SpMiddleResNetFHD는 SubM 합성곱 17개와 stride-2 sparse conv 4개, 총 21개 합성곱으로 이루어집니다(ONNX 그래프 기준).</p>
+    <p>왼쪽 그림은 개념을 보이려고 활성 칸 비율을 약 10%로 과장했습니다. 실제는 0.13%라 절약 효과가 훨씬 큽니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 9. Sparse Conv ② ============================ -->
+<section class="slide" id="s9" data-stage="sparse" data-title="Sparse Conv ② 행렬 곱으로" data-steps="7">
+  <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>희소 합성곱을 "행렬 곱"으로 바꾸기</h2></header>
+  <div class="cols even">
+    <div class="vis">
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <svg viewBox="0 0 250 210" style="width:250px;flex:none" role="img" aria-label="활성 칸 A B C D">
+          <g id="s9grid"></g>
+        </svg>
+        <div class="small" style="flex:1">
+          <p style="margin:0 0 6px"><b>2D 토이 예제</b> · 활성 칸 4개, 입력 채널 2, 출력 채널 2, SubM 3×3</p>
+          <div class="mat-wrap"><div><div class="mat" id="s9in" style="grid-template-columns:auto auto auto"><span class="m muted">A</span><span>1</span><span>2</span><span class="m muted">B</span><span>0</span><span>1</span><span class="m muted">C</span><span>3</span><span>1</span><span class="m muted">D</span><span>2</span><span>2</span></div><div class="mat-label">입력 특징 [4, 2]</div></div></div>
+        </div>
+      </div>
+      <div class="frag" data-s="2">
+        <table class="t" id="s9rule">
+          <thead><tr><th>커널 오프셋 k (dx,dy)</th><th>쌍 (입력 → 출력)</th><th class="n">개수</th></tr></thead>
+          <tbody>
+            <tr data-k="c"><td class="m">(0, 0)</td><td class="m">A→A, B→B, C→C, D→D</td><td class="n">4</td></tr>
+            <tr data-k="r"><td class="m">(+1, 0)</td><td class="m">B→A</td><td class="n">1</td></tr>
+            <tr><td class="m">(−1, 0)</td><td class="m">A→B</td><td class="n">1</td></tr>
+            <tr><td class="m">(0, +1)</td><td class="m">C→B</td><td class="n">1</td></tr>
+            <tr><td class="m">(0, −1)</td><td class="m">B→C</td><td class="n">1</td></tr>
+            <tr><td class="m">(+1, +1)</td><td class="m">C→A</td><td class="n">1</td></tr>
+            <tr><td class="m">(−1, −1)</td><td class="m">A→C</td><td class="n">1</td></tr>
+            <tr><td class="m muted">나머지 2개</td><td class="m muted">없음</td><td class="n">0</td></tr>
+            <tr><td><b>합계</b></td><td class="small muted">Dense였다면 20칸 × 9 = 180회</td><td class="n"><b>10</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="txt">
+      <p class="q">빈칸을 건너뛰는 합성곱을, GPU가 가장 잘하는 "큰 행렬 곱"으로 바꿀 수 있을까?</p>
+      <div class="frag" data-s="1"><div class="eq">out(p) = Σ<span class="c">_k</span>  in(p + k) · W<span class="c">_k</span>
+<span class="c">p: 출력 칸, k: 커널 오프셋 (3×3이면 9개)
+W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
+      <p class="idea">합성곱을 "오프셋별로 쪼개서" 생각한다. 오프셋 k 하나에 대해선 모든 칸이 <b>같은 행렬 W_k</b>를 곱한다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>① Rulebook 만들기:</b> 오프셋마다 "어느 입력이 어느 출력에 기여하나" 짝을 미리 적는다 (왼쪽 표). D는 이웃이 없어 자기 자신뿐이다.</p></div>
+      <div class="frag" data-s="3">
+        <p class="pt what"><b>② Gather → GEMM:</b> 오프셋 (0,0)의 입력 행을 모아 한 번에 곱한다.</p>
+        <div class="mat-wrap">
+          <div class="mat" id="s9g" style="grid-template-columns:auto auto"><span>1</span><span>2</span><span>0</span><span>1</span><span>3</span><span>1</span><span>2</span><span>2</span></div>
+          <span class="op">×</span>
+          <div><div class="mat" style="grid-template-columns:auto auto"><span>1</span><span>0</span><span>1</span><span>1</span></div><div class="mat-label">W(0,0)</div></div>
+          <span class="op">=</span>
+          <div class="mat" id="s9o" style="grid-template-columns:auto auto"><span>3</span><span>2</span><span>1</span><span>1</span><span>4</span><span>1</span><span>4</span><span>2</span></div>
+        </div>
+      </div>
+      <div class="frag" data-s="4">
+        <p class="pt what"><b>③ Scatter-add:</b> 오프셋 (+1,0)은 B→A 한 쌍. <code>[0, 1] × W(+1,0)</code> = <code>[0, 0.5]</code>를 A의 출력에 더한다 → A = <code>[3, 2.5]</code>. 9개 오프셋을 모두 돌면 끝.</p>
+        <p class="small muted m" style="margin:0">W(+1,0) = [[0.5, 0], [0, 0.5]]</p>
+      </div>
+      <div class="frag" data-s="5"><p class="pt why"><b>왜 빠른가:</b> 계산량이 격자 크기가 아니라 <b>쌍의 개수</b>에 비례한다. 각 오프셋은 <code>[쌍 수, C_in] × [C_in, C_out]</code> 행렬 곱 한 번이라 GPU Tensor Core가 잘 처리한다. 실제 3D에선 오프셋 27개, 예: <code>conv_input</code>의 W는 <code>[27, 5, 16]</code>, conv4는 <code>[27, 128, 128]</code>.</p></div>
+      <div class="frag" data-s="6"><p class="impl">Rulebook 생성과 gather-GEMM-scatter는 NVIDIA의 <code>libspconv</code>(비공개 .so)가 수행한다. 같은 해상도의 SubM 층들은 rulebook을 공유(indice_key)해서 한 번만 만든다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Gather – GEMM – Scatter</h3>
+    <p>합성곱을 수식으로 쓰면 <code>out(p) = Σ_k W_k · in(p + k)</code>입니다. 핵심은 합의 순서를 바꾸는 것입니다. "출력 칸마다 이웃을 도는" 대신 "오프셋마다 해당하는 모든 쌍을 한꺼번에" 처리합니다.</p>
+    <ol>
+      <li><b>Rulebook:</b> 오프셋 k마다 (입력 번호, 출력 번호) 쌍 목록. SubM은 출력 위치 = 입력 위치이므로 "p와 p+k가 둘 다 활성인" 쌍만 나옵니다. 해시 테이블로 "p+k가 활성인가"를 O(1)에 확인합니다.</li>
+      <li><b>Gather:</b> 쌍의 입력 번호대로 특징 행을 모아 <code>[M_k, C_in]</code> 행렬을 만듭니다.</li>
+      <li><b>GEMM:</b> <code>[M_k, C_in] × [C_in, C_out] = [M_k, C_out]</code>.</li>
+      <li><b>Scatter-add:</b> 결과 행을 쌍의 출력 번호 위치에 더합니다.</li>
+    </ol>
+    <p>토이 예제 A의 최종 출력 = W(0,0)·A + W(+1,0)·B + W(+1,+1)·C 입니다. 슬라이드에서는 앞의 두 항까지만 계산했습니다.</p>
+    <p>Dense 합성곱이었다면 5×4 = 20칸 격자 전부에서 9번씩 곱해 180회인데, 여기서는 10회입니다. 실제 LiDAR에서는 활성 비율이 0.13%라 차이가 수백 배 이상 벌어집니다.</p>
+    <p><b>파라미터 수.</b> 3D 3×3×3 커널이면 오프셋이 27개입니다. conv4 스테이지의 SubM 층 하나는 27 × 128 × 128 = 442,368개 가중치를 갖습니다. 가중치 개수는 dense와 같고, 계산하는 위치만 다릅니다.</p>
+    <p><b>BN과 ReLU.</b> 학습 때 각 합성곱 뒤에 BatchNorm과 ReLU가 있지만, 배포 시 BN은 합성곱 가중치에 합쳐지고(20장), ReLU는 합성곱 연산의 활성화 옵션으로 흡수됩니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 10. 3D 백본 ============================ -->
+<section class="slide" id="s10" data-stage="sparse" data-title="3D 백본 구조" data-steps="9">
+  <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>해상도는 줄이고, 채널은 늘린다</h2></header>
+  <div class="cols wide">
+    <div class="vis">
+      <svg id="s10svg" viewBox="0 0 800 470" role="img" aria-label="3D 백본 스테이지별 텐서 모양"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">왜 격자를 점점 작게 만들고, 칸마다 숫자(채널)는 점점 많게 만드나?</p>
+      <div class="frag" data-s="1"><p class="idea">사진을 가까이서 보면 모서리·질감이 보이고, 멀리서 보면 "차 모양"이 보인다. 처음엔 좁은 범위의 단순한 무늬를, 해상도를 줄여 가며 넓은 범위의 복잡한 모양을 본다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>해상도 ÷2, 채널 ×2:</b> 칸 수가 8배(3D) 줄어드는 대신 칸마다 더 많은 "모양 종류"를 기록한다. 층마다 계산량이 폭발하지 않게 균형을 맞추는 표준적인 설계다.</p></div>
+      <div class="frag" data-s="5"><p class="pt what"><b>수용 영역(receptive field):</b> 해상도를 3번 줄였으므로 마지막 칸 하나는 원래 격자의 8×8칸(0.6 m × 0.6 m) 영역을 대표하고, 3×3 커널은 수 미터 범위를 본다.</p></div>
+      <div class="frag" data-s="6"><p class="pt shape"><b>높이는 41 → 2로 압축.</b> 마지막 <code>extra_conv</code>는 높이 방향으로만 stride 2 (커널 3×1×1). 높이 정보를 2층으로 요약해 BEV로 넘길 준비를 한다.</p></div>
+      <div class="frag" data-s="7">
+        <p class="pt why"><b>잔차 블록(Residual):</b> <code>x → SubM → BN → ReLU → SubM → BN → (+x) → ReLU</code>. 입력을 출력에 더해 주는 지름길 덕분에 깊은 신경망도 학습이 잘 된다 (ResNet의 발상).</p>
+      </div>
+      <div class="frag" data-s="8"><p class="impl">ONNX 기준 SparseConvolution 21개, Add 8개(잔차), ReLU 8개. 전체가 <code>centerpoint.scn.onnx</code> 하나로 libspconv 엔진에 로드된다. Orin FP16 약 22 ms (파이프라인에서 가장 무거움).</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>SpMiddleResNetFHD 스테이지별 모양</h3>
+    <table class="t">
+      <tr><th>스테이지</th><th>연산</th><th>채널</th><th>[Z, Y, X]</th></tr>
+      <tr><td>conv_input</td><td>SubM 3³</td><td>5→16</td><td>41, 1440, 1440</td></tr>
+      <tr><td>conv1</td><td>잔차 블록 2개 (SubM)</td><td>16</td><td>41, 1440, 1440</td></tr>
+      <tr><td>conv2</td><td>SparseConv s2 + 잔차 2</td><td>32</td><td>21, 720, 720</td></tr>
+      <tr><td>conv3</td><td>SparseConv s2 + 잔차 2</td><td>64</td><td>11, 360, 360</td></tr>
+      <tr><td>conv4</td><td>SparseConv s2 (z 패딩 0) + 잔차 2</td><td>128</td><td>5, 180, 180</td></tr>
+      <tr><td>extra_conv</td><td>SparseConv k(3,1,1) s(2,1,1)</td><td>128</td><td>2, 180, 180</td></tr>
+    </table>
+    <p><b>출력 크기 계산:</b> <code>out = ⌊(in + 2·pad − k) / s⌋ + 1</code>. 예: z 41 → ⌊(41+2−3)/2⌋+1 = 21 → 11 → (11−3)/2+1 = 5 (패딩 0) → (5−3)/2+1 = 2.</p>
+    <p><b>왜 채널을 두 배로?</b> 3D에서 해상도를 절반으로 줄이면 칸 수가 1/8이 됩니다. 채널을 2배로 늘려도 층당 계산량(칸 수 × C_in × C_out)은 1/8 × 4 = 1/2로 오히려 줄어듭니다. 깊은 층일수록 "넓은 범위, 풍부한 표현, 적은 칸"이 됩니다. 희소 격자에서는 활성 칸 수가 해상도만큼 줄지 않을 수 있지만 원리는 같습니다.</p>
+    <p><b>잔차 연결</b>은 층을 많이 쌓아도 기울기(gradient)가 입력 쪽까지 잘 전달되게 합니다. 블록이 "입력을 조금만 고치면 되는" 문제를 풀게 되어 학습이 안정됩니다.</p>
+    <p>그림에서 사각형 크기는 가로세로 해상도, 두께는 채널 수를 나타냅니다. 크기는 로그 눈금이라 실제 비율과 다릅니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 11. BEV ============================ -->
+<section class="slide" id="s11" data-stage="bev" data-title="BEV: 위에서 본 지도" data-steps="7">
+  <header><span class="eyebrow">07 · BEV</span><h2>높이를 채널로 눕혀, 위에서 본 지도로</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg id="s11svg" viewBox="0 0 700 470" role="img" aria-label="높이 축을 채널로 펼치는 과정"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">3D 특징 <code>[128, 2, 180, 180]</code>을 왜, 어떻게 2D 지도로 바꾸나?</p>
+      <div class="frag" data-s="1"><p class="idea">도로 위 물체는 서로 위아래로 겹쳐 쌓이지 않는다. 그래서 위에서 내려다본 지도(Bird's-Eye View) 한 장이면 물체들이 거의 겹치지 않고 다 보인다. 높이 정보는 "지도 한 칸에 적힌 메모"로 남기면 된다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>① ScatterDense:</b> 희소 텐서 <code>[V', 128] + 좌표</code>를 0으로 채운 격자에 뿌려 dense 텐서 <code>[1, 128, 2, 180, 180]</code>로 만든다. 이제 빈칸도 0으로 존재한다.</p></div>
+      <div class="frag" data-s="3"><p class="pt what"><b>② Reshape:</b> 지도 칸 (y, x)마다 "높이 2층 × 채널 128"을 한 줄 256으로 편다. 데이터 복사 없이 모양만 다시 읽는다.</p></div>
+      <div class="frag" data-s="4"><div class="eq">[N, C, D, H, W] → [N, C·D, H, W]
+bev[c·2 + d, y, x] = vol[c, d, y, x]
+<span class="c">[1,128,2,180,180] → [1,256,180,180]
+256 × 180 × 180 × 2 B(fp16) ≈ 16.6 MB</span></div></div>
+      <div class="frag" data-s="5"><p class="pt why"><b>왜 BEV인가?</b> ① 물체 크기가 거리와 상관없이 일정하다(카메라와 달리 원근 왜곡이 없다). ② 이후는 평범한 2D CNN이라 빠르고, 검증된 이미지 검출 기법을 그대로 쓸 수 있다. ③ 자율주행의 판단(경로, 충돌)도 지면 위 2D에서 이루어진다.</p></div>
+      <div class="frag" data-s="6"><p class="impl">여기가 libspconv와 TensorRT의 경계. SCN 엔진의 마지막 출력(<code>ScatterDense</code>+<code>Reshape</code>)이 곧 TensorRT 엔진의 입력 바인딩 <code>1×256×180×180</code> fp16이다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Height compression과 BEV</h3>
+    <p>3D 백본 출력은 여전히 z 방향으로 2칸을 가진 3D 텐서입니다. 원 코드(<code>scn.py</code>)는 이를 dense로 바꾼 뒤 <code>view(N, C*D, H, W)</code>로 높이 축을 채널 축에 합칩니다.</p>
+    <p><b>채널 순서 주의.</b> 메모리가 [C, D, H, W] 순서이므로 합친 채널 번호는 <code>c·D + d</code>입니다. 즉 z0/z1이 "앞 128, 뒤 128"로 붙는 것이 아니라 <b>c0z0, c0z1, c1z0, c1z1, …</b>처럼 번갈아 놓입니다. 그림의 애니메이션이 이 순서를 보여 줍니다. 신경망은 학습 때도 같은 순서를 봤으므로 결과에는 문제가 없습니다.</p>
+    <p><b>왜 이렇게 해도 정보가 남나?</b> 3D 백본이 이미 높이 방향 이웃을 합성곱으로 섞으며 "이 위치의 높이 구조"를 채널에 기록해 두었습니다. 높이 2칸 × 128채널에는 "바닥부터 어디까지 점이 있는가, 지붕 모양은 어떤가" 같은 정보가 요약되어 있습니다.</p>
+    <p><b>BEV 격자:</b> 180 × 180칸, 한 칸 = 0.075 × 8 = 0.6 m, 108 m × 108 m를 덮습니다. 이 "×8"(<code>out_size_factor = 8</code>)이 뒤에서 박스 좌표를 미터로 되돌릴 때 쓰입니다.</p>
+    <p>그림 왼쪽 판은 BEV 격자, 표시된 한 칸 위의 기둥이 그 칸의 특징 벡터입니다. 128채널을 8개 칸으로 줄여 그렸습니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 12. Neck ============================ -->
+<section class="slide" id="s12" data-stage="neck" data-title="Neck: 두 가지 시야" data-steps="7">
+  <header><span class="eyebrow">08 · Neck (RPN)</span><h2>가까이 보는 눈과 멀리 보는 눈을 합친다</h2></header>
+  <div class="cols wide">
+    <div class="vis">
+      <svg viewBox="0 0 820 440" role="img" aria-label="RPN 두 갈래 구조">
+        <g class="frag" data-s="0" id="s12in">
+          <rect x="10" y="175" width="110" height="80" rx="4" class="f-violet-s s-violet"/>
+          <text x="65" y="205" text-anchor="middle" style="font-weight:700">BEV 입력</text>
+          <text x="65" y="225" text-anchor="middle" class="mono">256×180²</text>
+        </g>
+        <g class="frag" data-s="2">
+          <path d="M120 215H160" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <rect x="162" y="60" width="210" height="96" rx="4" class="f-teal-s s-teal"/>
+          <text x="267" y="84" text-anchor="middle" style="font-weight:700">Block 0 (세밀한 눈)</text>
+          <text x="267" y="104" text-anchor="middle" class="mono">Conv3×3 256→128</text>
+          <text x="267" y="120" text-anchor="middle" class="mono">+ Conv3×3 128→128 ×5</text>
+          <text x="267" y="143" text-anchor="middle" class="mono teal">128×180²</text>
+          <path d="M140 215V108H160" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <path d="M372 108H452" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <rect x="454" y="78" width="150" height="60" rx="4" class="f-teal-s s-teal"/>
+          <text x="529" y="102" text-anchor="middle" class="mono">Conv1×1 128→256</text>
+          <text x="529" y="124" text-anchor="middle" class="mono teal">256×180²</text>
+        </g>
+        <g class="frag" data-s="3">
+          <path d="M267 156V250" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <rect x="162" y="252" width="210" height="110" rx="4" class="f-heat-s s-heat"/>
+          <text x="267" y="276" text-anchor="middle" style="font-weight:700">Block 1 (넓은 눈)</text>
+          <text x="267" y="296" text-anchor="middle" class="mono">Conv3×3 128→256, stride 2</text>
+          <text x="267" y="312" text-anchor="middle" class="mono">+ Conv3×3 256→256 ×5</text>
+          <text x="267" y="349" text-anchor="middle" class="mono heat">256×90²</text>
+          <path d="M372 307H452" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <rect x="454" y="277" width="150" height="60" rx="4" class="f-heat-s s-heat"/>
+          <text x="529" y="301" text-anchor="middle" class="mono">Deconv 2×2, s2</text>
+          <text x="529" y="323" text-anchor="middle" class="mono heat">256×180²</text>
+        </g>
+        <g class="frag" data-s="4">
+          <path d="M604 108H650V190" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <path d="M604 307H650V240" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
+          <rect x="630" y="192" width="180" height="46" rx="4" class="f-violet-s s-violet"/>
+          <text x="720" y="212" text-anchor="middle" style="font-weight:700">Concat</text>
+          <text x="720" y="229" text-anchor="middle" class="mono violet">512×180²</text>
+        </g>
+        <g class="frag" data-s="6">
+          <text x="162" y="400" class="mono teal" style="font-size:12px">Block0 경로 수용영역 ≈ 13칸 ≈ 7.8 m</text>
+          <text x="162" y="420" class="mono heat" style="font-size:12px">Block1 경로 수용영역 ≈ 35칸 ≈ 21 m</text>
+          <text x="530" y="420" class="mut" style="font-size:11px">(Neck만 계산, 1칸 = 0.6 m)</text>
+        </g>
+      </svg>
+    </div>
+    <div class="txt">
+      <p class="q">0.7 m 보행자와 12 m 버스를 한 지도에서 동시에 잘 보려면?</p>
+      <div class="frag" data-s="1"><p class="idea">카메라의 망원 렌즈와 광각 렌즈. 해상도가 높은 지도는 작은 물체의 정확한 위치를, 해상도를 반으로 줄인 지도는 넓은 범위의 문맥(버스 전체 모양)을 잘 본다. 둘을 겹쳐 쓰면 둘 다 얻는다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>Block 0:</b> 180×180 해상도 그대로 3×3 합성곱 6번. 세밀한 위치 정보를 유지한다.</p></div>
+      <div class="frag" data-s="3"><p class="pt what"><b>Block 1:</b> stride 2로 90×90으로 줄인 뒤 합성곱 6번. 같은 3×3 커널이 두 배 넓은 땅을 본다. 끝에서 전치 합성곱(deconv)으로 다시 180×180으로 키운다.</p></div>
+      <div class="frag" data-s="4"><p class="pt shape"><b>Concat:</b> 두 결과를 채널 방향으로 이어 붙인다: 256 + 256 = <b>512</b>. 이제 각 칸은 "가까이서 본 정보"와 "멀리서 본 정보"를 함께 가진다.</p></div>
+      <div class="frag" data-s="5">
+        <p class="pt shape"><b>2D 합성곱 = 행렬 곱 (im2col).</b> 칸마다 3×3 이웃 × 256채널을 한 줄로 펴면:</p>
+        <div class="eq">[180·180, 3·3·256] × [2304, 128] = [32400, 128]
+<span class="c">= 32400 × 2304 × 128 ≈ 9.6 G 곱셈-덧셈 (Block0 첫 층)</span></div>
+      </div>
+      <div class="frag" data-s="6"><p class="impl">Neck과 Head는 하나의 TensorRT 엔진(<code>rpn_centerhead_sim</code>)으로 실행된다. 각 합성곱 뒤의 BN+ReLU는 합성곱 하나로 합쳐진다. Orin FP16 약 11 ms.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>RPN (SECOND-FPN 스타일)</h3>
+    <p>원 설정: <code>layer_nums=[5,5]</code>, <code>ds_layer_strides=[1,2]</code>, <code>ds_num_filters=[128,256]</code>, <code>us_layer_strides=[1,2]</code>, <code>us_num_filters=[256,256]</code>.</p>
+    <ul>
+      <li>Block 0: 첫 Conv3×3 (256→128, stride 1) + Conv3×3 5개 = 6층. 모두 BN + ReLU.</li>
+      <li>Deblock 0: upsample stride 1 = 크기 유지, 1×1 합성곱으로 128→256.</li>
+      <li>Block 1: 첫 Conv3×3 (128→256, stride 2)로 180→90 + Conv3×3 5개.</li>
+      <li>Deblock 1: ConvTranspose2d (kernel 2, stride 2)로 90→180, 256채널.</li>
+    </ul>
+    <p><b>Block 1의 입력은 Block 0의 출력</b>입니다(직렬). 두 갈래가 병렬이 아니라, 세밀한 특징을 한 번 더 깊고 넓게 가공한 것입니다.</p>
+    <p><b>수용 영역(receptive field)</b>은 출력 한 칸이 입력의 몇 칸을 "볼 수 있는가"입니다. 3×3 합성곱 한 층마다 양쪽으로 1칸씩 넓어지므로 Block 0의 6층 뒤엔 1 + 2·6 = 13칸. Block 1은 해상도가 절반이라 층마다 2칸씩 넓어져 약 35칸이 됩니다. 앞의 3D 백본 수용 영역까지 합치면 실제로는 더 넓습니다(여기선 Neck만 계산한 근사값).</p>
+    <p><b>im2col.</b> 합성곱을 행렬 곱으로 바꾸는 표준 방법입니다. 출력 칸마다 이웃 3×3×C_in 값을 한 행으로 펴고, 가중치를 [9·C_in, C_out] 행렬로 펴면 합성곱 = 행렬 곱이 됩니다. 앞 장의 sparse conv가 오프셋별로 쪼갠 것과 같은 식을 다른 순서로 묶은 것입니다.</p>
+    <p><b>Deconvolution(전치 합성곱)</b> 2×2, stride 2는 입력 한 칸이 출력 2×2칸에 학습된 값을 "찍어" 내는 연산입니다. 해상도를 다시 키우는 학습 가능한 확대 방법입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 13. Head 구조 ============================ -->
+<section class="slide" id="s13" data-stage="head" data-title="Head: 칸마다 묻는 질문" data-steps="6">
+  <header><span class="eyebrow">09 · CenterHead</span><h2>지도의 모든 칸에 같은 질문을 던진다</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg id="s13svg" viewBox="0 0 720 470" role="img" aria-label="CenterHead 구조"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">Neck이 만든 <code>[512, 180, 180]</code> 지도에서, 칸 하나는 무엇에 대답해야 하나?</p>
+      <div class="frag" data-s="1">
+        <p class="idea">32,400개 칸이 각자 스스로에게 묻는다. <b>"내가 어떤 물체의 중심인가?"</b> 그렇다면 <b>"중심은 칸 안 정확히 어디? 높이는? 크기는? 어느 쪽을 보나? 얼마나 빠른가?"</b></p>
+      </div>
+      <div class="frag" data-s="2"><p class="pt what"><b>공유 합성곱:</b> 512→64채널 Conv3×3. 모든 질문에 공통으로 쓸 특징으로 압축한다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>클래스를 6개 그룹(task)으로 나눈다.</b> 크기와 모양이 비슷한 클래스끼리 묶어 각 그룹이 자기 헤드를 갖는다. 흔한 승용차가 드문 트레일러의 학습을 압도하지 않게 하고, 그룹마다 알맞은 크기 감각을 따로 익히게 한다.</p></div>
+      <div class="frag" data-s="4"><p class="pt shape"><b>그룹마다 6개 헤드</b> (각각 Conv3×3 64→64 + BN + ReLU → Conv3×3 64→C):<br><code>hm</code> 클래스 수(1~2) · <code>reg</code> 2 · <code>height</code> 1 · <code>dim</code> 3 · <code>rot</code> 2 · <code>vel</code> 2</p></div>
+      <div class="frag" data-s="5">
+        <p class="pt shape"><b>합계:</b> 6그룹 × 6헤드 = 출력 36개, 각 <code>[1, C, 180, 180]</code>. 채널 합 = 6 × 10 + 10(hm) = 70.</p>
+        <p class="impl">hm 마지막 층의 bias는 −2.19로 초기화: sigmoid(−2.19) ≈ 0.1. "처음엔 모든 칸이 중심일 확률 10%"로 시작해 학습 초기의 폭주를 막는다.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>CenterHead</h3>
+    <p><b>Task 그룹</b> (nuScenes 10클래스):</p>
+    <ol><li>car</li><li>truck, construction_vehicle</li><li>bus, trailer</li><li>barrier</li><li>motorcycle, bicycle</li><li>pedestrian, traffic_cone</li></ol>
+    <p>그룹을 나누는 이유는 두 가지입니다. 첫째, nuScenes는 클래스 불균형이 심합니다(승용차가 압도적으로 많음). 헤드를 공유하면 흔한 클래스의 기울기가 드문 클래스를 덮습니다. 둘째, 크기 척도가 비슷한 물체끼리 회귀 헤드를 공유하면 크기·높이 예측이 안정됩니다. 이 방식은 CBGS(Class-Balanced Grouping and Sampling) 논문에서 왔습니다.</p>
+    <p><b>헤드별 의미 (다음 두 장에서 자세히):</b></p>
+    <ul>
+      <li><code>hm</code>: 클래스별 "중심일 확률" 지도 (sigmoid 전 logit)</li>
+      <li><code>reg</code>: 칸 안에서 실제 중심까지의 오프셋 (Δx, Δy), 단위 = 칸</li>
+      <li><code>height</code>: 중심의 z 좌표 (m)</li>
+      <li><code>dim</code>: log(w), log(l), log(h)</li>
+      <li><code>rot</code>: sin(yaw), cos(yaw)</li>
+      <li><code>vel</code>: vx, vy (m/s)</li>
+    </ul>
+    <p><b>bias −2.19의 유래.</b> RetinaNet의 prior 초기화입니다. b = −log((1 − π)/π), π = 0.1 → −log 9 ≈ −2.197. 초기에 모든 칸이 확률 0.5로 시작하면 빈칸 수만 개가 큰 loss를 내어 학습이 불안정해집니다.</p>
+    <p>모든 칸이 같은 헤드(같은 가중치)를 공유하므로, 위치에 관계없이 같은 기준으로 판단합니다. 이것이 합성곱의 "위치 불변성"입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 14. Heatmap ============================ -->
+<section class="slide" id="s14" data-stage="head" data-title="Heatmap: 중심 확률 지도" data-steps="6">
+  <header><span class="eyebrow">09 · CenterHead</span><h2>Heatmap: "여기가 중심일 확률" 지도</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <div class="btnrow" id="s14btns" role="group" aria-label="task 선택"></div>
+      <canvas class="cv" id="cv-s14" width="1100" height="1100" aria-label="클래스 그룹별 heatmap" style="width:480px;height:480px;flex:none"></canvas>
+    </div>
+    <div class="txt">
+      <p class="q">"중심일 확률 지도"는 어떻게 생겼고, 왜 봉우리 모양인가?</p>
+      <p class="pt shape">격자 180×180, 한 칸 = <b>0.6 m</b>. 값은 <code>sigmoid(hm)</code> ∈ (0, 1).</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>물체 중심에 봉우리가 솟는다.</b> 중심 칸이 가장 높고 멀어질수록 부드럽게 낮아진다. 나머지 대부분은 거의 0.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>그룹마다, 클래스마다 지도가 따로 있다.</b> 위 버튼으로 바꿔 보자. 승용차 지도엔 승용차만, 보행자·콘 지도엔 작은 봉우리들만 뜬다.</p></div>
+      <div class="frag" data-s="3">
+        <p class="pt shape"><b>봉우리 확대 (승용차, 5×5칸)</b></p>
+        <table class="t" id="s14tab" style="width:auto"></table>
+      </div>
+      <div class="frag" data-s="4"><p class="pt what"><b>점수 0.1 이상인 칸 = 후보</b> (지도 위 테두리). 한 물체에 후보 칸이 여러 개 생기며, 중복은 후처리에서 지운다.</p></div>
+      <div class="frag" data-s="5"><p class="pt why"><b>왜 한 점(1)이 아니라 봉우리인가?</b> 중심 바로 옆 칸도 "거의 정답"이다. 옆 칸을 완전한 오답으로 벌주면 신경망이 혼란스러워한다. 부드러운 봉우리는 "가까울수록 덜 틀렸다"는 정보를 준다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Heatmap 읽는 법</h3>
+    <p>각 task 그룹의 <code>hm</code> 출력은 <code>[1, 클래스 수, 180, 180]</code>입니다. 값에 sigmoid를 적용하면 칸 (y, x)가 해당 클래스 물체의 중심일 확률이 됩니다.</p>
+    <p>이미지 검출의 CenterNet에서는 3×3 max-pooling으로 "주변보다 높은 칸"(local maximum)만 골라 봉우리 하나당 물체 하나로 봅니다. CenterPoint의 nuScenes 설정과 CUDA-CenterPoint는 max-pooling 대신 <b>점수 0.1 이상인 모든 칸</b>을 후보로 삼고, 겹치는 박스를 NMS로 정리합니다(18장).</p>
+    <p><b>봉우리의 폭</b>은 물체 크기에 따라 다릅니다. 큰 물체는 조금 어긋나도 박스가 많이 겹치므로 봉우리가 넓고, 작은 물체는 좁습니다(16장 "가우시안 반지름").</p>
+    <p>왼쪽 지도는 가상 장면에 대해 봉우리 모양을 시각화한 것입니다(실제 모델 출력 아님). 108 m × 108 m 전체를 180×180칸으로 보여 줍니다. 가운데가 자차 위치입니다.</p>
+    <p><b>해상도가 0.6 m라는 것의 의미.</b> 보행자 폭(약 0.7 m)이 한두 칸밖에 안 됩니다. 그래서 칸 번호만으로는 위치가 부정확하고, 칸 안의 정확한 위치를 <code>reg</code> 헤드가 따로 보정합니다(다음 장).</p>
+  </div>
+</section>
+
+<!-- ============================ 15. 회귀 ============================ -->
+<section class="slide" id="s15" data-stage="head" data-title="회귀: 박스 속성 읽기" data-steps="7">
+  <header><span class="eyebrow">09 · CenterHead</span><h2>중심 칸에서 박스를 읽어내는 법</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg id="s15svg" viewBox="0 0 720 500" role="img" aria-label="오프셋, 크기, 방향, 속도 표현"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">중심 칸을 찾았다. 그런데 칸은 0.6 m나 되는데, 정확한 박스는 어떻게 얻나? 그리고 왜 이런 형태로 예측하나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>오프셋 reg (Δx, Δy):</b> 칸 모서리에서 실제 중심까지 "몇 분의 몇 칸"인가. 칸 크기로 뭉개진 위치를 되살린다.</p>
+        <div class="eq">x = (col + Δx) · 8 · 0.075 − 54
+  = (110 + 0.37) · 0.6 − 54 = <span class="hl">12.22 m</span></div></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>높이 height:</b> 중심의 z (m)를 그대로 예측. BEV로 눌러 버린 높이를 여기서 되찾는다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>크기 dim = log(w, l, h):</b> 콘 0.4 m부터 버스 12 m까지 30배 차이. log로 바꾸면 "몇 배 틀렸나"를 공평하게 보고, exp()로 되돌리면 항상 양수다.</p>
+        <div class="eq">exp(0.66, 1.53, 0.43) = (<span class="hl">1.94, 4.62, 1.54</span>) m</div></div>
+      <div class="frag" data-s="4"><p class="pt why"><b>방향 rot = (sin θ, cos θ):</b> 각도를 직접 예측하면 +179°와 −179°가 숫자로는 358 차이지만 실제로는 2° 차이다. 원 위의 점 (sin, cos)으로 나타내면 이 끊김이 사라진다.</p>
+        <div class="eq">θ = atan2(0.50, 0.866) = 0.524 rad = <span class="hl">30°</span></div></div>
+      <div class="frag" data-s="5"><p class="pt what"><b>속도 vel (vx, vy):</b> m/s. 여러 sweep의 "꼬리"를 보고 추정한다. 예: (3.2, 0.4) → 약 3.2 m/s.</p></div>
+      <div class="frag" data-s="6"><p class="pt shape"><b>결국 칸 하나 = 10개 숫자</b> <code>[Δx, Δy, z, log w, log l, log h, sin, cos, vx, vy]</code> + 클래스 점수. 모든 칸이 이것을 예측하지만, 쓰이는 건 봉우리 칸의 값뿐이다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>왜 이런 "인코딩"을 쓰나</h3>
+    <p>회귀 대상은 사람이 편한 형태가 아니라 <b>신경망이 배우기 쉬운 형태</b>로 바꿔서 예측합니다. 디코딩(되돌리기)은 후처리에서 합니다.</p>
+    <ul>
+      <li><b>오프셋:</b> 칸 번호(정수)와 실제 위치의 차이는 항상 0~1칸 사이입니다. 범위가 작고 일정해서 배우기 쉽습니다. 이것이 없으면 위치 오차가 최대 0.6 m로, 보행자에게는 치명적입니다.</li>
+      <li><b>log 크기:</b> L1 loss로 크기를 직접 배우면 버스의 1 m 오차와 콘의 1 m 오차가 같은 벌점을 받습니다. log 공간에서는 "10% 틀림"이 크기와 상관없이 같은 벌점입니다. 또 exp()의 결과는 항상 양수라 음수 크기가 나올 수 없습니다.</li>
+      <li><b>sin/cos:</b> 각도는 원(周期) 위의 값이라 −π와 +π가 같은 방향입니다. 숫자 하나로 예측하면 경계에서 loss가 튀고, 신경망이 "평균"을 내면 엉뚱한 방향(0°)이 나옵니다. (sin, cos) 두 값은 연속이고, <code>atan2(sin, cos)</code>로 정확한 각도를 되찾습니다.</li>
+      <li><b>속도:</b> nuScenes 평가(NDS)에 속도 오차(mAVE)가 포함됩니다. 속도는 추적에도 쓰입니다(19장).</li>
+    </ul>
+    <p><b>디코딩 공식</b> (CUDA <code>predictKernel</code>): <code>x = (col + reg[0]) · 8 · 0.075 − 54</code>, <code>y = (row + reg[1]) · 8 · 0.075 − 54</code>, <code>z = height</code>, <code>(w,l,h) = exp(dim)</code>, <code>yaw = atan2(rot[0], rot[1])</code>.</p>
+    <p>예시(col=110, row=95)의 y = (95 + 0.62) · 0.6 − 54 = 3.37 m. 앞 장들의 가상 장면에서 30° 기울어진 승용차의 값입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 16. 학습 ① ============================ -->
+<section class="slide" id="s16" data-stage="train" data-title="학습 ① 정답 지도 만들기" data-steps="6">
+  <header><span class="eyebrow">10 · 학습</span><h2>정답 heatmap은 이렇게 그린다</h2></header>
+  <div class="cols even">
+    <div class="vis">
+      <svg id="s16svg" viewBox="0 0 560 300" role="img" aria-label="정답 박스와 BEV 칸"></svg>
+      <div class="frag" data-s="4" style="display:flex;gap:16px;align-items:flex-start">
+        <table class="t" id="s16tab" style="width:auto"></table>
+        <p class="small muted" style="margin:0">중심 칸 = 1.0, 반지름 2칸 안쪽만 값이 있다. 두 물체의 봉우리가 겹치면 큰 값(max)을 쓴다.</p>
+      </div>
+    </div>
+    <div class="txt">
+      <p class="q">학습하려면 "정답 확률 지도"가 필요하다. 사람이 단 박스 라벨에서 어떻게 만드나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>① 중심 칸 찾기:</b> 박스 중심을 BEV 칸 번호로 바꾼다.</p>
+        <div class="eq">col = (12.22 + 54) / 0.6 = 110.37 → <span class="hl">110</span>
+row = (3.37 + 54) / 0.6 = 95.62  → <span class="hl">95</span>
+<span class="c">남은 소수부 (0.37, 0.62)가 reg의 정답</span></div></div>
+      <div class="frag" data-s="2"><p class="pt why"><b>② 봉우리 모양으로 칠하기:</b> 중심 칸에 1을 두고 주변을 가우시안으로 낮춘다. "중심에서 조금 어긋난 예측도 박스로서는 꽤 괜찮다"는 사실을 정답에 담는 것이다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>③ 반지름 r:</b> "중심이 r칸 어긋나도 박스가 충분히 겹치는" 최대 거리. 큰 물체는 r이 크고 작은 물체는 작다. 최소 2칸.</p>
+        <div class="eq">승용차 1.9 × 4.6 m → 3.17 × 7.67칸
+r = gaussian_radius(7.67, 3.17, 0.1) ≈ 2.07
+r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div></div>
+      <div class="frag" data-s="4"><div class="eq">Y(dx, dy) = exp(−(dx² + dy²) / 2σ²)</div></div>
+      <div class="frag" data-s="5"><p class="pt what"><b>④ 회귀 정답은 중심 칸에만.</b> reg, z, log 크기, sin/cos, 속도 10개 값을 중심 칸 위치에만 기록하고, loss도 그 칸에서만 계산한다(한 장면 최대 500개).</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Heatmap 정답 생성 (CornerNet 방식)</h3>
+    <p><b>가우시안 반지름</b>은 CornerNet의 <code>gaussian_radius</code> 함수로 정합니다. 예측 박스의 두 꼭짓점이 정답에서 r만큼 어긋나도 IoU가 <code>min_overlap</code> 이상이 되는 r을 세 가지 경우(둘 다 안쪽, 둘 다 바깥쪽, 한쪽씩)의 이차방정식으로 풀고, 가장 작은 값을 씁니다. CenterPoint는 <code>gaussian_overlap = 0.1</code>, <code>min_radius = 2</code>를 씁니다.</p>
+    <p>예시 계산(승용차 3.17 × 7.67칸, overlap 0.1): 세 해가 대략 8.5, 16.3, 2.07이고 최솟값 2.07 → 정수 2 → 최소 2와 비교해 r = 2. nuScenes에서는 대부분의 물체가 최소 반지름 2에 걸립니다.</p>
+    <p><b>σ = 지름 / 6</b>: 지름 2r+1 = 5칸이 가우시안의 ±3σ에 해당하도록 한 것입니다. 5×5 값: 중심 1.0, 상하좌우 0.49, 대각 0.24, 2칸 떨어진 곳 0.06.</p>
+    <p><b>회귀 정답</b>(<code>anno_box</code>): <code>[Δx, Δy, z, log w, log l, log h, vx, vy, sin θ, cos θ]</code>. 칸 번호(<code>ind</code>)와 유효 여부(<code>mask</code>)를 함께 저장하고, 한 장면에 최대 <code>max_objs = 500</code>개까지 둡니다.</p>
+    <p><b>데이터 증강</b>: 전체 장면 회전(±45°), 크기 조정(0.9~1.1배), 평행 이동(표준편차 0.5 m). 박스와 점을 함께 변환하므로 정답 heatmap도 함께 바뀝니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 17. 학습 ② ============================ -->
+<section class="slide" id="s17" data-stage="train" data-title="학습 ② Focal loss" data-steps="6">
+  <header><span class="eyebrow">10 · 학습</span><h2>정답은 몇 칸, 오답은 3만 칸: Focal loss</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg id="s17svg" viewBox="0 0 720 400" role="img" aria-label="Focal loss 곡선"></svg>
+      <div class="frag" data-s="4">
+        <table class="t">
+          <thead><tr><th>상황</th><th class="n">예측 p</th><th class="n">BCE</th><th class="n">Focal</th><th class="n">비율</th></tr></thead>
+          <tbody>
+            <tr><td>정답 칸, 잘 맞힘</td><td class="n">0.9</td><td class="n">0.105</td><td class="n">0.00105</td><td class="n">1/100</td></tr>
+            <tr><td>정답 칸, 못 맞힘</td><td class="n">0.3</td><td class="n">1.204</td><td class="n">0.590</td><td class="n">1/2</td></tr>
+            <tr><td>빈칸, 쉬움 (y = 0)</td><td class="n">0.05</td><td class="n">0.0513</td><td class="n">0.000128</td><td class="n">1/400</td></tr>
+            <tr><td>중심 옆 칸 (y = 0.49)</td><td class="n">0.5</td><td class="n">0.693</td><td class="n">0.0118</td><td class="n">1/59</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="txt">
+      <p class="q">32,400칸 × 10클래스 중 정답은 몇십 칸. 보통 방식(BCE)으로 배우면 무슨 일이 생기나?</p>
+      <div class="frag" data-s="1"><p class="pt why"><b>문제:</b> "쉬운 빈칸"은 하나하나의 loss는 작지만 수가 압도적이다. 합치면 loss 대부분이 "이미 잘 아는 빈칸"에서 나와, 정작 어려운 물체 칸을 배우지 못한다.</p></div>
+      <div class="frag" data-s="2"><p class="idea">시험공부할 때 이미 맞히는 쉬운 문제는 그만 풀고 틀리는 문제에 집중하는 것. 잘 맞힌 칸의 loss를 거의 0으로 깎는다.</p>
+        <div class="eq">정답 칸:  −(1 − p)² · log p</div></div>
+      <div class="frag" data-s="3"><div class="eq">빈칸:  −(1 − y)⁴ · p² · log(1 − p)</div>
+        <p class="pt why"><b>(1 − y)⁴</b>: 봉우리 근처(y가 1에 가까운 칸)는 "거의 정답"이므로 높게 예측해도 벌을 거의 안 준다. 정답 지도의 가우시안이 여기서 쓰인다.</p></div>
+      <div class="frag" data-s="5">
+        <p class="pt shape"><b>회귀 loss:</b> 중심 칸에서만 L1. 속도는 가중치 0.2(다른 값은 1).</p>
+        <div class="eq">L = L_hm + 0.25 · L_reg<span class="c">   (/ 정답 수 N)</span></div>
+        <p class="small muted">Adam, one-cycle lr 최대 1e-3, 20 epoch.</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>Focal loss (CornerNet 변형)</h3>
+    <p>CenterPoint는 CornerNet/CenterNet의 heatmap focal loss(<code>FastFocalLoss</code>, α = 2, β = 4)를 씁니다.</p>
+    <div class="eq">L_hm = −(1/N) Σ { (1−p)^α · log p            if y = 1
+                  (1−y)^β · p^α · log(1−p)   otherwise }</div>
+    <p>N은 정답 중심의 개수입니다. 합을 정답 수로 나누어, 물체가 많은 장면과 적은 장면의 loss 크기를 맞춥니다.</p>
+    <p><b>(1−p)^α 항</b>: 정답 칸에서 이미 p가 1에 가까우면 loss를 크게 줄입니다. p = 0.9면 BCE의 1/100.</p>
+    <p><b>p^α 항</b>: 빈칸에서 이미 p가 0에 가까우면 loss를 줄입니다. p = 0.05면 1/400.</p>
+    <p><b>(1−y)^β 항</b>: 가우시안 정답 값 y가 큰 칸(중심 바로 옆)의 벌점을 줄입니다. y = 0.49면 (0.51)^4 ≈ 0.068로 약 1/15이 되어, 봉우리가 한 칸 옆에 생겨도 크게 벌받지 않습니다.</p>
+    <p><b>회귀 loss</b>(<code>RegLoss</code>): 10개 목표 [Δx, Δy, z, log w, log l, log h, vx, vy, sin, cos]에 대한 L1 loss, <code>code_weights = [1,1,1,1,1,1,0.2,0.2,1,1]</code>. 속도 가중치가 낮은 이유는 속도 값이 크고 잡음이 많아서 다른 항을 압도하지 않게 하기 위함입니다. 전체 loss는 <code>hm + 0.25 · loc</code>이고, task 그룹마다 계산해 더합니다.</p>
+    <p>왼쪽 그래프는 두 식을 실제로 계산해 그린 것입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 18. 후처리 ============================ -->
+<section class="slide" id="s18" data-stage="post" data-title="후처리: 박스 복원과 NMS" data-steps="7">
+  <header><span class="eyebrow">11 · 후처리</span><h2>봉우리에서 최종 박스 목록까지</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <canvas class="cv" id="cv-s18" width="1400" height="1100" aria-label="후보 칸, 박스 디코딩, NMS"></canvas>
+      <div class="legend"><span><i style="background:var(--heat)"></i>후보 / 남은 박스</span><span><i style="background:var(--rose)"></i>NMS로 지워지는 박스</span></div>
+    </div>
+    <div class="txt">
+      <p class="q">확률 지도와 회귀 지도에서, 물체당 박스 하나짜리 목록을 어떻게 만드나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>① 후보 고르기:</b> 칸마다 클래스 중 최고 점수 <code>max(sigmoid(hm))</code>. 0.1을 넘고 범위(±61.2 m) 안이면 후보.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>② 박스 복원:</b> 후보 칸마다 15장의 공식으로 (x, y, z, w, l, h, yaw, vx, vy)를 계산한다. 한 물체 주변의 여러 칸이 거의 같은 박스를 만든다.</p></div>
+      <div class="frag" data-s="3"><p class="pt what"><b>③ 점수순 정렬 → NMS:</b> 가장 높은 박스를 남기고, 그것과 BEV에서 IoU &gt; 0.2로 겹치는 박스를 지운다. 이를 반복한다.</p></div>
+      <div class="frag" data-s="4"><p class="pt shape"><b>④ 결과:</b> 그룹당 최대 83개. 물체마다 <code>[x, y, z, w, l, h, vx, vy, yaw, label, score]</code> 11개 값.</p></div>
+      <div class="frag" data-s="5"><p class="pt why"><b>왜 "회전된" IoU인가?</b> 기울어진 차 두 대가 나란히 있으면 축 정렬 상자로는 크게 겹쳐 보여 한 대가 잘못 지워진다. 실제 회전된 사각형끼리 겹친 면적을 계산해야 한다.</p></div>
+      <div class="frag" data-s="6"><p class="impl">디코딩: 칸당 스레드 하나(<code>predictKernel</code>). 정렬: CPU. NMS: CUDA(64비트 마스크). 이 NMS 구현 차이로 mAP가 PyTorch보다 약 2 낮다(README의 알려진 이슈). Orin 약 4.4 ms.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>디코딩과 NMS</h3>
+    <p><b>후보 선택.</b> CenterNet은 3×3 max-pool로 봉우리만 골라 NMS 없이 끝내는 것이 특징이었습니다. 하지만 LiDAR에서는 가까운 물체들이 붙어 있고 봉우리가 넓어, CenterPoint의 nuScenes 설정은 점수 임계값(0.1) + <b>회전 NMS</b>(IoU 0.2)를 씁니다. CUDA-CenterPoint도 같습니다.</p>
+    <p><b>파라미터</b> (<code>include/common.h</code>): <code>score_threshold = 0.1</code>, <code>post_center_range = [−61.2, −61.2, −10, 61.2, 61.2, 10]</code>, <code>nms_pre_max_size = 1000</code>, <code>nms_post_max_size = 83</code>, <code>nms_iou_threshold = 0.2</code>.</p>
+    <p><b>IoU 0.2라는 낮은 기준</b>: BEV에서 실제 물체끼리는 거의 겹치지 않으므로, 조금만 겹쳐도 같은 물체의 중복으로 봅니다. 이미지 검출(보통 0.5)보다 훨씬 엄격합니다.</p>
+    <p><b>클래스 라벨.</b> task 그룹마다 따로 NMS를 하고, 그룹 안 번호에 오프셋(0, 1, 3, 5, 6, 8)을 더해 10클래스 번호로 바꿉니다.</p>
+    <p><b>Orin 구현 흐름</b>: task마다 ① <code>predictKernel</code>로 후보 박스 생성 ② CPU에서 <code>std::sort</code>로 점수순 정렬(최대 1000개) ③ w/l 교환과 yaw 좌표계 변환(<code>permute_cuda</code>) ④ <code>nms_cuda</code>가 박스 쌍의 회전 IoU를 계산해 비트 마스크 작성 ⑤ CPU에서 마스크를 훑어 남길 박스 결정.</p>
+    <p>왼쪽 그림은 가상 장면에서 후보 칸의 박스를 약간씩 흔들어 만든 설명용 예시입니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 19. 확장 개념 ============================ -->
+<section class="slide" id="s19" data-stage="post" data-title="확장: 추적과 2단계 정제" data-steps="6">
+  <header><span class="eyebrow">12 · 확장 개념</span><h2>점으로 표현한 덕분에 얻는 것: 추적</h2></header>
+  <div class="cols">
+    <div class="vis">
+      <svg id="s19svg" viewBox="0 0 720 480" role="img" aria-label="속도를 이용한 중심점 추적"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">물체마다 속도까지 예측하면, 무엇을 거의 공짜로 얻나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>두 프레임</b>: 이전 프레임(t−1)의 물체들과 현재 프레임(t)의 물체들. "누가 누구인가"를 이어야 추적이 된다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>현재 중심을 속도로 되돌린다:</b></p><div class="eq">p' = p_t − v_t · Δt</div><p class="small muted" style="margin:4px 0 0">"0.5초 전에 이 물체는 여기 있었을 것이다"</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>가장 가까운 점끼리 짝짓기(greedy).</b> 되돌린 위치와 이전 물체 중 가장 가까운 것을 연결하고, 거리가 기준보다 멀면 새 물체로 본다. 칼만 필터 같은 복잡한 모델 없이도 nuScenes 추적 성능이 매우 높았다. 물체가 "점"이기에 가능한 단순함이다.</p></div>
+      <div class="frag" data-s="4"><p class="pt what"><b>원 논문의 2단계 정제:</b> 1단계 박스의 중심과 네 면의 중앙, 5개 점에서 BEV 특징을 뽑아 작은 MLP로 점수와 박스를 다시 다듬는다. 중심 한 점만으론 부족한 "물체 가장자리 정보"를 보완하는 아이디어다.</p></div>
+      <div class="frag" data-s="5"><p class="impl">CUDA-CenterPoint는 <b>1단계 검출기</b>만 포함한다. 추적과 2단계 정제는 없으며, 필요하면 출력 (x, y, vx, vy)로 위의 추적을 직접 구현할 수 있다(연산이 매우 가볍다).</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>CenterPoint의 추적</h3>
+    <p>원 논문 제목은 <i>Center-based 3D Object <b>Detection and Tracking</b></i>입니다. 추적 방법은 다음과 같이 단순합니다.</p>
+    <ol>
+      <li>현재 프레임의 각 검출에 대해 예측 속도로 이전 시점의 위치를 추정합니다: <code>p' = p − v·Δt</code>.</li>
+      <li>이전 프레임의 추적 중인 물체들과 중심 거리(L2)를 계산합니다.</li>
+      <li>점수가 높은 검출부터 가장 가까운 이전 물체와 짝지어 같은 ID를 줍니다(greedy). 클래스별 거리 한계를 넘으면 새 ID를 줍니다.</li>
+      <li>짝을 못 찾은 이전 물체는 몇 프레임 동안 속도로 위치를 예측하며 유지하다가 사라지면 지웁니다.</li>
+    </ol>
+    <p>속도 예측이 좋으면 이 단순한 방법만으로 충분합니다. 논문 발표 당시 nuScenes 추적 벤치마크에서 최고 수준의 성능을 냈습니다.</p>
+    <p><b>2단계(two-stage) 정제</b>는 1단계 박스마다 BEV 특징 지도에서 5개 점(중심 + 4면 중앙)의 특징을 bilinear 보간으로 뽑아 이어 붙이고, MLP로 IoU 기반 점수와 박스 보정값을 예측합니다. Waymo에서 효과가 컸고, nuScenes에서는 향상이 작아 nuScenes 1단계 설정이 널리 쓰입니다. NVIDIA의 Orin 예제도 1단계만 배포합니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 20. Orin ① ============================ -->
+<section class="slide" id="s20" data-stage="deploy" data-title="Orin 배포 ① 개념" data-steps="6">
+  <header><span class="eyebrow">13 · Orin 배포</span><h2>같은 모델을 더 빠르게: 그래프 최적화와 낮은 정밀도</h2></header>
+  <div class="cols even">
+    <div class="vis">
+      <svg id="s20svg" viewBox="0 0 600 250" role="img" aria-label="PyTorch에서 TensorRT로"></svg>
+      <div class="frag" data-s="4">
+        <table class="t" id="s20bits"></table>
+      </div>
+      <div class="frag" data-s="5">
+        <table class="t">
+          <thead><tr><th>정밀도 (3D 백본)</th><th class="n">mAP</th><th class="n">NDS</th></tr></thead>
+          <tbody>
+            <tr><td>FP16</td><td class="n">59.55</td><td class="n">66.75</td></tr>
+            <tr><td>INT8 PTQ (학습 후 양자화)</td><td class="n">59.08</td><td class="n">66.45</td></tr>
+            <tr><td>INT8 QAT (양자화 인지 학습)</td><td class="n">59.20</td><td class="n">66.53</td></tr>
+          </tbody>
+        </table>
+        <p class="small muted" style="margin:4px 0 0">nuScenes val, 공식 qat/README (가짜 양자화로 평가)</p>
+      </div>
+    </div>
+    <div class="txt">
+      <p class="q">학습된 가중치는 그대로인데, 어떻게 PyTorch보다 10배 이상 빨라지나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>PyTorch는 "유연함"을 위해 설계됐다.</b> 층마다 파이썬이 GPU에 작업을 하나씩 던지고, 중간 결과를 매번 메모리에 썼다 읽는다. README 기준 A30에서 PyTorch 3 FPS → CUDA-CenterPoint 47 FPS.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>ONNX:</b> 모델을 "계산 그래프"라는 데이터 파일로 뽑아낸다. 파이썬 없이 어떤 엔진이든 읽을 수 있다.</p></div>
+      <div class="frag" data-s="3"><p class="pt why"><b>층 합치기(fusion):</b> Conv → BN → ReLU 세 번의 메모리 왕복을 커널 하나로. BN은 추론 때 상수이므로 합성곱 가중치에 미리 곱해 넣을 수 있다.</p>
+        <div class="eq">W' = W · γ/√(σ²+ε)
+b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
+      <div class="frag" data-s="4"><p class="pt why"><b>낮은 정밀도:</b> 32비트 대신 16비트(FP16)나 8비트 정수(INT8)로 계산하면 메모리가 절반·1/4이 되고 Tensor Core가 훨씬 많이 처리한다.</p>
+        <div class="eq">INT8:  q = round(x / s),   x ≈ s · q   <span class="c">(s = 채널별 스케일)</span></div></div>
+      <div class="frag" data-s="5"><p class="pt why"><b>정확도 손실은 작다.</b> 신경망은 작은 반올림 오차에 둔감하다. 민감한 첫 층들(<code>conv_input</code>, <code>conv1</code> 첫 블록)은 FP16으로 두고 나머지를 INT8로 돌린다.</p></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>TensorRT가 하는 일</h3>
+    <ul>
+      <li><b>그래프 최적화:</b> 쓰이지 않는 연산 제거, 상수 미리 계산, 층 합치기(Conv+BN+ReLU, 여러 1×1 conv 병합 등).</li>
+      <li><b>커널 자동 선택(auto-tuning):</b> 같은 합성곱에도 구현 방법이 수십 가지입니다. 엔진을 빌드할 때 이 GPU(Orin의 sm_87)에서 가장 빠른 것을 실제로 재어 고릅니다. 그래서 엔진 파일은 <b>빌드한 장치와 TensorRT 버전에서만</b> 쓸 수 있습니다.</li>
+      <li><b>정밀도 선택:</b> FP32/FP16/INT8 중 허용된 정밀도로 층마다 가장 빠른 것을 씁니다.</li>
+      <li><b>메모리 계획:</b> 중간 텐서 버퍼를 재사용해 메모리를 줄입니다.</li>
+    </ul>
+    <p><b>BN folding 유도.</b> BN(y) = γ·(y − μ)/√(σ²+ε) + β, y = W·x + b를 대입하면 (W·γ/√(σ²+ε))·x + ((b − μ)·γ/√(σ²+ε) + β)이므로 새 가중치 W', 새 bias b'인 합성곱 하나가 됩니다.</p>
+    <p><b>FP16</b>은 지수 5비트, 가수 10비트로, 약 ±65504 범위에 유효숫자 3~4자리입니다. 신경망의 활성값과 가중치는 대부분 이 범위에 들어갑니다.</p>
+    <p><b>INT8</b>은 정수 −128~127과 스케일 s로 실수를 근사합니다. s는 보정 데이터로 활성값 분포를 보고 정합니다(PTQ). QAT는 학습 중에 반올림을 흉내 내서(fake quantization) 신경망이 양자화 오차에 적응하도록 미세 조정합니다. 그래서 PTQ보다 정확도 손실이 작습니다.</p>
+    <p><b>Orin 하드웨어</b>(AGX Orin 64GB): Ampere GPU 2048 CUDA 코어 + 64 Tensor 코어, LPDDR5 204.8 GB/s를 CPU와 GPU가 공유합니다. 데스크톱 GPU보다 메모리 대역폭이 작아서, 메모리 왕복을 줄이는 fusion과 낮은 정밀도의 효과가 특히 큽니다.</p>
+  </div>
+</section>
+
+<!-- ============================ 21. Orin ② ============================ -->
+<section class="slide" id="s21" data-stage="deploy" data-title="Orin 배포 ② 실무" data-steps="6">
+  <header><span class="eyebrow">13 · Orin 배포</span><h2>CUDA-CenterPoint의 실제 구성과 시간</h2></header>
+  <div class="cols wide">
+    <div class="vis">
+      <svg id="s21svg" viewBox="0 0 820 470" role="img" aria-label="CUDA-CenterPoint 실행 구조와 지연 시간"></svg>
+    </div>
+    <div class="txt">
+      <p class="q">왜 한 모델을 CUDA 커널, libspconv, TensorRT 세 가지로 나눠 돌리나?</p>
+      <div class="frag" data-s="1"><p class="pt what"><b>단계마다 성격이 다르다.</b> 복셀화·후처리는 "데이터 정리"라 딱 맞는 CUDA 커널을 직접 짰다. 신경망 중 희소한 부분은 libspconv, 조밀한 2D 부분은 TensorRT.</p></div>
+      <div class="frag" data-s="2"><p class="pt why"><b>왜 3D 백본은 TensorRT가 아닌가?</b> 희소 합성곱은 프레임마다 활성 칸과 rulebook이 바뀌는 "모양이 데이터에 따라 달라지는" 연산이다. TensorRT는 고정된 모양의 조밀한 텐서에 최적화되어 있어, 전용 엔진(libspconv)이 따로 필요하다.</p></div>
+      <div class="frag" data-s="3"><p class="pt shape"><b>시간 (Orin, ms):</b> 3D 백본이 절반 이상. 복셀 수가 많은 복잡한 장면일수록 이 부분이 늘어난다. Neck+Head는 INT8로 11.3 → 7.0 ms.</p></div>
+      <div class="frag" data-s="4"><p class="pt shape"><b>메모리:</b> 모든 버퍼를 최대 크기로 미리 잡는다(점 30만, 복셀 16만). 가장 큰 것은 Neck의 512×180×180 특징(약 33 MB).</p></div>
+      <div class="frag" data-s="5">
+        <p class="pt why"><b>실무 체크</b></p>
+        <p class="small" style="margin:0">· TensorRT 엔진은 Orin에서 직접 빌드 (장치·버전 종속)<br>· libspconv는 sm_80/86/87만 지원 (Orin = sm_87)<br>· 배치 1, 고정 입력 크기<br>· 전력 모드 MAXN + <code>jetson_clocks</code>로 측정<br>· NMS 구현 차이로 mAP −2 (57.57 vs 59.55)</p>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>CUDA-CenterPoint 실행 흐름</h3>
+    <ol>
+      <li><b>입력</b>: <code>.bin</code> 파일에서 <code>[N,5]</code> fp32 점을 읽어 GPU로 복사.</li>
+      <li><b>Voxelization</b> (CUDA, FP32 연산 → FP16 출력): 해시 → 복셀화 → 평균. 출력 <code>features [V,5]</code>, <code>indices [V,4]</code>.</li>
+      <li><b>SCN</b> (libspconv): <code>spconv::load_engine_from_onnx("centerpoint.scn.onnx")</code>로 로드. 입력 희소 텐서, 출력 dense <code>[1,256,180,180]</code> FP16.</li>
+      <li><b>RPN + CenterHead</b> (TensorRT): <code>rpn_centerhead_sim.onnx</code>를 <code>trtexec --fp16</code>로 빌드한 엔진. 입력 1개, 출력 36개.</li>
+      <li><b>Postprocess</b> (CUDA + CPU): task마다 디코드 → 정렬 → 회전 NMS.</li>
+    </ol>
+    <p><b>공식 Orin 수치</b> (README, nuScenes val 평균, Drive Orin 6.0.3.0 / CUDA 11.4 / TensorRT 8.4): Voxelization 1.36 ms, 3D Backbone 22.3 ms, RPN+Head 11.3 ms (INT8 7.0), Decode+NMS 4.4 ms, 합계 40.0 ms (INT8 35.7 ms). 정확도 57.57 mAP / 65.64 NDS.</p>
+    <p><b>메모리 추정</b> (fp16 = 2 B): 점 300,000 × 5 × 4 B = 6 MB, 복셀 특징 160,000 × 5 × 2 B = 1.6 MB, BEV 256 × 180² × 2 B = 16.6 MB, Neck 출력 512 × 180² × 2 B = 33.2 MB, Head 출력 70 × 180² × 2 B = 4.5 MB. 여기에 libspconv 내부 버퍼(rulebook 등)와 TensorRT 작업 공간이 더해집니다.</p>
+    <p><b>INT8.</b> <code>qat/</code> 폴더에 3D 백본의 양자화 인지 학습(QAT)과 INT8 ONNX 내보내기 경로가 있습니다. 기본 실행 예제는 FP16입니다.</p>
+    <p><b>알려진 이슈.</b> README는 CUDA 버전과 PyTorch 버전의 약 2 mAP 차이가 NMS 구현 차이 때문이라고 밝힙니다. 정확도가 중요하면 후처리를 먼저 점검하세요.</p>
+  </div>
+</section>
+
+<!-- ============================ 22. 정리 ============================ -->
+<section class="slide" id="s22" data-stage="" data-title="정리" data-steps="2">
+  <header><span class="eyebrow">14 · 정리</span><h2>한 장으로 보는 CenterPoint</h2></header>
+  <div style="display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
+    <table class="t">
+      <thead><tr><th>단계</th><th>푸는 문제</th><th>핵심 발상</th><th>모양</th></tr></thead>
+      <tbody>
+        <tr><td>입력</td><td>한 번의 스캔은 듬성듬성, 속도를 모름</td><td>10 sweep 누적 + Δt 채널</td><td class="m">[N, 5]</td></tr>
+        <tr><td>복셀화</td><td>점은 순서도 격자도 없음</td><td>칸에 담고 평균 → 규칙적 격자</td><td class="m">[V, 5] + [V, 4]</td></tr>
+        <tr><td>3D Sparse 백본</td><td>99.87%가 빈칸</td><td>있는 칸만 계산 (SubM), 해상도↓ 채널↑</td><td class="m">[128, 2, 180, 180]</td></tr>
+        <tr><td>BEV</td><td>3D는 무겁고 다루기 어렵다</td><td>도로 위 물체는 겹치지 않는다 → 높이를 채널로</td><td class="m">[256, 180, 180]</td></tr>
+        <tr><td>Neck</td><td>작은 물체와 큰 물체</td><td>두 해상도의 특징을 이어 붙임</td><td class="m">[512, 180, 180]</td></tr>
+        <tr><td>Head</td><td>회전된 박스를 anchor로 찾기 어렵다</td><td>물체 = 중심점, 속성은 회귀 (offset, log, sin/cos)</td><td class="m">6 × [C, 180, 180]</td></tr>
+        <tr><td>학습</td><td>정답 칸은 극소수</td><td>가우시안 정답 + Focal loss</td><td class="m">—</td></tr>
+        <tr><td>후처리</td><td>물체마다 후보가 여럿</td><td>점수 0.1 → 디코드 → 회전 NMS 0.2</td><td class="m">[K, 11]</td></tr>
+        <tr><td>Orin</td><td>실시간 (≤ 100 ms)</td><td>CUDA 커널 + libspconv + TensorRT, FP16/INT8</td><td class="m">≈ 40 ms</td></tr>
+      </tbody>
+    </table>
+    <div class="frag" data-s="1">
+      <div class="gloss">
+        <div><b>포인트 클라우드</b>LiDAR가 측정한 3D 점들의 집합. 순서가 없다.</div>
+        <div><b>Sweep</b>LiDAR가 한 바퀴 돌며 얻은 한 번의 스캔.</div>
+        <div><b>복셀 (voxel)</b>3D 격자의 한 칸. 여기선 7.5 × 7.5 × 20 cm.</div>
+        <div><b>희소 (sparse)</b>대부분이 0/빈칸인 데이터. 값이 있는 곳만 저장한다.</div>
+        <div><b>SubM Conv</b>출력 위치를 입력 활성 칸으로 고정한 희소 합성곱.</div>
+        <div><b>Rulebook</b>희소 합성곱의 (입력, 출력) 짝 목록. 커널 오프셋마다 하나.</div>
+        <div><b>BEV</b>Bird's-Eye View. 위에서 내려다본 2D 지도. 한 칸 0.6 m.</div>
+        <div><b>수용 영역</b>출력 한 칸이 입력에서 "볼 수 있는" 범위.</div>
+        <div><b>Heatmap</b>칸마다 "물체 중심일 확률"을 담은 지도.</div>
+        <div><b>Focal loss</b>쉬운 칸의 loss를 깎아 어려운 칸에 집중하게 하는 loss.</div>
+        <div><b>NMS</b>겹치는 중복 박스 중 점수가 가장 높은 것만 남기는 과정.</div>
+        <div><b>TensorRT</b>NVIDIA의 추론 최적화 엔진. 층 합치기, 커널 선택, 저정밀도.</div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>발표용 한 줄 요약</h3>
+    <p>"CenterPoint는 흩어진 LiDAR 점을 격자에 담아, 빈칸은 건너뛰는 3D 합성곱으로 모양을 이해하고, 위에서 본 지도로 펼친 뒤, 물체를 '중심점'으로 찾아 그 자리에서 크기·방향·속도를 읽어내는 모델입니다. Orin에서는 이를 CUDA 커널, libspconv, TensorRT로 나눠 약 40 ms에 실행합니다."</p>
+    <h3>더 읽을거리</h3>
+    <ul>
+      <li>Yin, Zhou, Krähenbühl. Center-based 3D Object Detection and Tracking. CVPR 2021.</li>
+      <li>Zhou et al. Objects as Points (CenterNet). 2019.</li>
+      <li>Graham et al. 3D Semantic Segmentation with Submanifold Sparse Convolutional Networks. CVPR 2018.</li>
+      <li>Yan et al. SECOND: Sparsely Embedded Convolutional Detection. 2018.</li>
+      <li>Law, Deng. CornerNet. ECCV 2018 (heatmap focal loss, gaussian radius).</li>
+      <li>NVIDIA-AI-IOT/Lidar_AI_Solution — CUDA-CenterPoint (GitHub).</li>
+    </ul>
+  </div>
+</section>
+
+    </div>
+    <aside class="panel" id="notes" aria-label="자습 노트"><button class="close" type="button" id="notes-close">닫기</button><div class="ptitle">자습 노트</div><div id="notes-body"></div></aside>
+    <nav class="panel" id="toc" aria-label="목차"><button class="close" type="button" id="toc-close">닫기</button><div class="ptitle">목차</div><ol id="toc-list"></ol></nav>
+  </main>
+
+  <div class="foot">
+    <button type="button" id="prev" aria-label="이전">← 이전</button>
+    <button type="button" id="next" class="primary" aria-label="다음">다음 →</button>
+    <span class="counter" id="counter">1 / 22</span>
+    <div class="dots" id="dots"></div>
+    <div class="prog"><b id="progbar"></b></div>
+    <span class="hint">N 노트 · T 목차</span>
+    <button type="button" id="notes-btn">노트</button>
+    <button type="button" id="toc-btn">목차</button>
+  </div>
+</div>
+<script>
+(function(){
+"use strict";
+/* ============================================================
+   helpers
+   ============================================================ */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const tok = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NS = 'http://www.w3.org/2000/svg';
+function S(tag, attrs, parent, text){
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function rng(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r){ let u = 0, v = 0; while(!u) u = r(); while(!v) v = r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function prep(c){
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return null;
+  const d = 2;
+  if (c.width !== w*d || c.height !== h*d){ c.width = w*d; c.height = h*d; }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.clearRect(0,0,w,h);
+  return {ctx, w, h};
+}
+function hexA(hex, a){
+  hex = hex.replace('#','');
+  if (hex.length === 3) hex = hex.split('').map(x=>x+x).join('');
+  const n = parseInt(hex,16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+}
+function lerpHex(a, b, t){
+  const pa = parseInt(a.slice(1),16), pb = parseInt(b.slice(1),16);
+  const r = Math.round((pa>>16&255)*(1-t)+(pb>>16&255)*t), g = Math.round((pa>>8&255)*(1-t)+(pb>>8&255)*t), bl = Math.round((pa&255)*(1-t)+(pb&255)*t);
+  return `rgb(${r},${g},${bl})`;
+}
+function zColor(z){ // -2 .. 2 m
+  const t = Math.max(0, Math.min(1, (z + 1.9) / 3.2));
+  return t < .5 ? lerpHex('#3b6fd0','#2bb3a8', t*2) : lerpHex('#2bb3a8','#f0a040', (t-.5)*2);
+}
+function corners(o){
+  const c = Math.cos(o.yaw||0), s = Math.sin(o.yaw||0), L = o.l/2, W = o.w/2;
+  return [[L,W],[-L,W],[-L,-W],[L,-W]].map(([a,b]) => [o.x + a*c - b*s, o.y + a*s + b*c]);
+}
+
+/* ============================================================
+   virtual scene (for illustration only)
+   ============================================================ */
+const G = -1.8; // ground height relative to sensor
+const OBJS = [
+  {x:12.22, y:3.37, yaw:0.524, w:1.94, l:4.62, h:1.54, cls:'승용차', task:0, v:[3.2,0.4]},
+  {x:-8, y:6.5, yaw:0, w:1.9, l:4.5, h:1.5, cls:'승용차', task:0, v:[0,0]},
+  {x:20, y:-9, yaw:1.57, w:2.0, l:4.8, h:1.6, cls:'승용차', task:0, v:[0,-5]},
+  {x:-16, y:-4, yaw:0.1, w:1.8, l:4.3, h:1.5, cls:'승용차', task:0, v:[6,0.6]},
+  {x:-30, y:-12, yaw:0.05, w:1.9, l:4.6, h:1.5, cls:'승용차', task:0, v:[0,0]},
+  {x:33, y:8, yaw:-0.3, w:1.9, l:4.5, h:1.5, cls:'승용차', task:0, v:[-7,2]},
+  {x:6, y:-19, yaw:0, w:2.9, l:11, h:3.2, cls:'버스', task:2, v:[4,0]},
+  {x:-25, y:16, yaw:0.2, w:2.5, l:7, h:3, cls:'트럭', task:1, v:[0,0]},
+  {x:6, y:9, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[0,1.2]},
+  {x:7.2, y:10, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[0,1.1]},
+  {x:-4, y:-9.5, yaw:0, w:0.7, l:0.7, h:1.7, cls:'보행자', task:5, v:[1,0]},
+  {x:3, y:-5, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:3.6, y:-6.2, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:4.2, y:-7.4, yaw:0, w:0.4, l:0.4, h:0.7, cls:'콘', task:5, v:[0,0]},
+  {x:-12, y:12, yaw:0.3, w:0.6, l:1.8, h:1.4, cls:'자전거', task:4, v:[2,0.6]},
+  ...[0,1,2,3,4].map(i => ({x:-2+i*2.2, y:14, yaw:0, w:0.5, l:2, h:1, cls:'방호벽', task:3, v:[0,0]}))
+];
+const POINTS = (function(){
+  const r = rng(7), pts = [];
+  for (let i = 0; i < 34; i++){
+    const rad = 2.4 * Math.pow(1.1, i);
+    if (rad > 54) break;
+    const n = 1100;
+    for (let k = 0; k < n; k++){
+      if (r() < .45) continue;
+      const a = (k / n) * Math.PI * 2 + r()*0.002;
+      const x = rad*Math.cos(a), y = rad*Math.sin(a);
+      if (Math.abs(y) > 24) continue;
+      pts.push([x, y, G + gauss(r)*0.04, 1]);
+    }
+  }
+  // building walls at |y| = 24
+  for (const wy of [24, -24]){
+    for (let x = -50; x < 50; x += 0.18){
+      const d = Math.hypot(x, wy);
+      if (r() > 30/d) continue;
+      for (let z = G; z < G + 5; z += 0.35 + r()*0.2) pts.push([x + gauss(r)*0.03, wy + gauss(r)*0.05, z, 2]);
+    }
+  }
+  // poles / trees
+  for (const [px,py] of [[-20,21],[0,21.5],[18,-21],[28,20],[-38,-21],[40,-20]]){
+    for (let k = 0; k < 60; k++) pts.push([px + gauss(r)*0.6, py + gauss(r)*0.6, G + 1.5 + r()*3, 2]);
+  }
+  // objects: visible faces only
+  for (const o of OBJS){
+    const dist = Math.hypot(o.x, o.y);
+    const n = Math.max(10, Math.min(420, 2600/(dist+2) * Math.sqrt((o.l*o.w)/8 + .15)));
+    const c = Math.cos(o.yaw), s = Math.sin(o.yaw);
+    const edges = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
+    const lens = edges.map(e => Math.hypot(e[1][0]-e[0][0], e[1][1]-e[0][1]));
+    const tot = lens.reduce((a,b)=>a+b,0);
+    let made = 0, guard = 0;
+    while (made < n && guard++ < n*6){
+      let t = r()*tot, ei = 0;
+      while (t > lens[ei]) { t -= lens[ei]; ei++; }
+      const e = edges[ei], f = t / lens[ei];
+      const lx = e[0][0] + (e[1][0]-e[0][0])*f, ly = e[0][1] + (e[1][1]-e[0][1])*f;
+      const wx = o.x + lx*c - ly*s, wy = o.y + lx*s + ly*c;
+      const nx = e[2][0]*c - e[2][1]*s, ny = e[2][0]*s + e[2][1]*c;
+      if (nx*wx + ny*wy > 0) continue;
+      pts.push([wx + gauss(r)*0.02, wy + gauss(r)*0.02, G + r()*o.h, 3]);
+      made++;
+    }
+  }
+  return pts;
+})();
+
+function drawCloud(ctx, w, h, R, opts={}){
+  const sc = Math.min(w, h) / (2*R), cx = w/2, cy = h/2;
+  ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+  for (const p of POINTS){
+    const X = cx + p[0]*sc, Y = cy - p[1]*sc;
+    if (X < 0 || Y < 0 || X > w || Y > h) continue;
+    ctx.globalAlpha = p[3] === 1 ? .38 : .95;
+    ctx.fillStyle = zColor(p[2]);
+    const s = p[3] === 3 ? 2.4 : 1.2;
+    ctx.fillRect(X - s/2, Y - s/2, s, s);
+  }
+  ctx.globalAlpha = 1;
+  // ego
+  ctx.fillStyle = tok('--ink');
+  ctx.beginPath(); ctx.moveTo(cx+7, cy); ctx.lineTo(cx-5, cy-5); ctx.lineTo(cx-5, cy+5); ctx.closePath(); ctx.fill();
+  return {sc, cx, cy};
+}
+function strokeBox(ctx, o, m, color, lw=1.5, heading=true){
+  const cs = corners(o).map(([x,y]) => [m.cx + x*m.sc, m.cy - y*m.sc]);
+  ctx.strokeStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); cs.forEach((p,i) => i ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.stroke();
+  if (heading){
+    ctx.beginPath(); ctx.moveTo((cs[0][0]+cs[3][0])/2, (cs[0][1]+cs[3][1])/2); ctx.lineTo(m.cx + o.x*m.sc, m.cy - o.y*m.sc); ctx.stroke();
+  }
+}
+
+/* ============================================================
+   slide engine
+   ============================================================ */
+const slides = $$('.slide');
+const STAGES = [['input','입력'],['voxel','복셀화'],['sparse','3D Sparse 백본'],['bev','BEV'],['neck','Neck'],['head','Head'],['train','학습'],['post','후처리'],['deploy','Orin 배포']];
+const hooks = {};
+const inited = new Set();
+let cur = 0, step = 0;
+
+const pmap = $('#pmap');
+STAGES.forEach(([k,l]) => { const s = document.createElement('span'); s.dataset.k = k; s.textContent = l; pmap.appendChild(s); });
+
+const tocList = $('#toc-list');
+slides.forEach((s,i) => {
+  const li = document.createElement('li'), b = document.createElement('button');
+  b.type = 'button';
+  b.innerHTML = `<span>${i+1}</span>${s.dataset.title}`;
+  b.addEventListener('click', () => { go(i, 0); togglePanel('toc', false); });
+  li.appendChild(b); tocList.appendChild(li);
+});
+
+function nSteps(i){ return +slides[i].dataset.steps || 1; }
+function applyStep(){
+  const s = slides[cur];
+  $$('.frag', s).forEach(f => {
+    const a = +f.dataset.s, u = f.dataset.u;
+    f.classList.toggle('on', step >= a && (u === undefined || step < +u));
+  });
+  const h = hooks[s.id];
+  if (h && h.step) h.step(step);
+  updateUI();
+}
+function go(i, k){
+  if (i !== cur){
+    const h = hooks[slides[cur].id]; if (h && h.leave) h.leave();
+    slides[cur].classList.remove('active');
+    cur = i;
+  }
+  slides[cur].classList.add('active');
+  const id = slides[cur].id;
+  if (!inited.has(id)){ inited.add(id); const h = hooks[id]; if (h && h.init) h.init(); }
+  step = Math.max(0, Math.min(k, nSteps(cur)-1));
+  applyStep();
+  try { history.replaceState(null, '', '#' + id); } catch(e) {}
+}
+function next(){ if (step < nSteps(cur)-1){ step++; applyStep(); } else if (cur < slides.length-1) go(cur+1, 0); }
+function prev(){ if (step > 0){ step--; applyStep(); } else if (cur > 0) go(cur-1, nSteps(cur-1)-1); }
+
+function updateUI(){
+  const s = slides[cur], st = s.dataset.stage;
+  const idx = STAGES.findIndex(x => x[0] === st);
+  $$('span', pmap).forEach((e,i) => { e.classList.toggle('here', i === idx); e.classList.toggle('done', idx >= 0 && i < idx); });
+  const here = $('span.here', pmap); if (here) here.scrollIntoView({block:'nearest', inline:'nearest'});
+  $('#counter').textContent = `${cur+1} / ${slides.length}`;
+  const dots = $('#dots'); dots.innerHTML = '';
+  for (let i = 0; i < nSteps(cur); i++){ const d = document.createElement('i'); if (i <= step) d.className = 'on'; dots.appendChild(d); }
+  $('#progbar').style.width = ((cur + (step+1)/nSteps(cur)) / slides.length * 100) + '%';
+  const n = $('.notes', s);
+  $('#notes-body').innerHTML = `<h3 style="margin-top:6px">${cur+1}. ${s.dataset.title}</h3>` + (n ? n.innerHTML : '<p class="muted">이 슬라이드에는 노트가 없습니다.</p>');
+  $$('#toc-list button').forEach((b,i) => b.classList.toggle('cur', i === cur));
+}
+function togglePanel(id, force){
+  const p = $('#'+id); const open = force === undefined ? !p.classList.contains('open') : force;
+  p.classList.toggle('open', open);
+  if (open){ const other = id === 'notes' ? 'toc' : 'notes'; $('#'+other).classList.remove('open'); }
+}
+
+$('#next').addEventListener('click', e => { e.stopPropagation(); next(); });
+$('#prev').addEventListener('click', e => { e.stopPropagation(); prev(); });
+$('#notes-btn').addEventListener('click', () => togglePanel('notes'));
+$('#toc-btn').addEventListener('click', () => togglePanel('toc'));
+$('#notes-close').addEventListener('click', () => togglePanel('notes', false));
+$('#toc-close').addEventListener('click', () => togglePanel('toc', false));
+$('#stage').addEventListener('click', e => {
+  if (e.target.closest('button, a, input, select, .panel, table, .btnrow')) return;
+  if (window.getSelection && String(window.getSelection())) return;
+  next();
+});
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (k === 'ArrowRight' || k === ' ' || k === 'PageDown' || k === 'Enter'){ if (k === 'Enter' && e.target.closest('button')) return; e.preventDefault(); next(); }
+  else if (k === 'ArrowLeft' || k === 'PageUp'){ e.preventDefault(); prev(); }
+  else if (k === 'Home'){ go(0,0); }
+  else if (k === 'End'){ go(slides.length-1, 0); }
+  else if (k === 'n' || k === 'N'){ togglePanel('notes'); }
+  else if (k === 't' || k === 'T'){ togglePanel('toc'); }
+  else if (k === 'Escape'){ togglePanel('notes', false); togglePanel('toc', false); }
+});
+
+// theme
+$('#themebtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('cp-theme', root.dataset.theme); } catch(e) {}
+  redraw();
+});
+try { const t = localStorage.getItem('cp-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => redraw());
+function redraw(){ const h = hooks[slides[cur].id]; if (h && h.step) h.step(step); }
+
+// scaling
+const stage = $('#stage'), vp = $('#viewport');
+function fit(){
+  const flow = window.innerWidth < 760;
+  document.body.classList.toggle('flow', flow);
+  if (flow){ stage.style.transform = ''; stage.style.position = ''; stage.style.left = ''; stage.style.top = ''; }
+  else {
+    const r = vp.getBoundingClientRect();
+    const s = Math.min((r.width - 8) / 1280, (r.height - 16) / 720);
+    stage.style.position = 'absolute'; stage.style.left = '50%'; stage.style.top = '50%';
+    stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+  }
+  redraw();
+}
+window.addEventListener('resize', fit);
+
+/* ============================================================
+   S1 title: rotating LiDAR scan
+   ============================================================ */
+hooks.s1 = (function(){
+  let raf = 0, t0 = 0;
+  function frame(t){
+    const c = $('#cv-title'), P = prep(c); if (!P) return;
+    const {ctx, w, h} = P;
+    const R = 34, sc = Math.min(w, h) / (2*R) * 1.05, cx = w*0.55, cy = h/2;
+    const ang = reduced ? null : ((t - t0) / 2600) * Math.PI * 2;
+    ctx.fillStyle = tok('--panel'); ctx.fillRect(0,0,w,h);
+    for (const p of POINTS){
+      const X = cx + p[0]*sc, Y = cy - p[1]*sc;
+      if (X < 0 || Y < 0 || X > w || Y > h) continue;
+      let a = 1;
+      if (ang !== null){
+        let d = (ang - Math.atan2(p[1], p[0])) % (Math.PI*2); if (d < 0) d += Math.PI*2;
+        a = Math.max(.12, 1 - d / (Math.PI*2));
+      }
+      ctx.globalAlpha = a * (p[3] === 1 ? .55 : .95);
+      ctx.fillStyle = zColor(p[2]);
+      ctx.fillRect(X-.8, Y-.8, 1.6, 1.6);
+    }
+    ctx.globalAlpha = 1;
+    if (ang !== null){
+      ctx.strokeStyle = hexA(tok('--heat'), .5); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang)*w, cy - Math.sin(ang)*w); ctx.stroke();
+    }
+    ctx.fillStyle = tok('--ink');
+    ctx.beginPath(); ctx.moveTo(cx+8, cy); ctx.lineTo(cx-6, cy-6); ctx.lineTo(cx-6, cy+6); ctx.closePath(); ctx.fill();
+    // fade toward text side
+    const g = ctx.createLinearGradient(0,0,w*0.45,0);
+    g.addColorStop(0, tok('--panel')); g.addColorStop(1, hexA(tok('--panel').startsWith('#') ? tok('--panel') : '#ffffff', 0));
+    ctx.fillStyle = g; ctx.fillRect(0,0,w*0.45,h);
+    if (!reduced && slides[cur].id === 's1') raf = requestAnimationFrame(frame);
+  }
+  return {
+    step(){ cancelAnimationFrame(raf); t0 = performance.now(); raf = requestAnimationFrame(frame); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S2 problem: static cloud + boxes
+   ============================================================ */
+hooks.s2 = {
+  step(k){
+    const P = prep($('#cv-s2')); if (!P) return;
+    const {ctx, w, h} = P;
+    const m = drawCloud(ctx, w, h, 36);
+    if (k >= 1){
+      ctx.font = '600 12px ' + tok('--sans');
+      ctx.setLineDash([4,4]); ctx.strokeStyle = tok('--muted'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(m.cx, m.cy, 8*m.sc, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.cx, m.cy, 30*m.sc, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = tok('--ink');
+      ctx.fillText('가까움: 점이 빽빽', m.cx + 8*m.sc*0.72 + 4, m.cy - 8*m.sc*0.72);
+      ctx.fillText('멂: 점이 듬성듬성', m.cx + 30*m.sc*0.72 + 4, m.cy - 30*m.sc*0.72 + 14);
+    }
+    if (k >= 2){
+      for (const o of OBJS) strokeBox(ctx, o, m, tok('--ink'), 1.4);
+    }
+    if (k >= 3){
+      ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
+      const seen = new Set();
+      for (const o of OBJS){
+        if (o.cls === '방호벽' && seen.has('방호벽')) continue;
+        if (o.cls === '콘' && seen.has('콘')) continue;
+        seen.add(o.cls);
+        const X = m.cx + o.x*m.sc, Y = m.cy - o.y*m.sc;
+        if (X < 10 || X > w-40 || Y < 10 || Y > h-10) continue;
+        ctx.fillText(o.cls, X + 8, Y - Math.max(o.w,o.l)*m.sc/2 - 3);
+      }
+    }
+  }
+};
+
+/* ============================================================
+   S4 pipeline map
+   ============================================================ */
+hooks.s4 = {
+  init(){
+    const g = $('#s4nodes'), b = $('#s4bands');
+    const N = [
+      ['점 구름','[N, 5]','센서가 본 세상 그대로'],
+      ['복셀화','[V,5] + [V,4]','점을 격자 칸에 정리'],
+      ['3D Sparse 백본','[128,2,180,180]','빈칸 빼고 3D 모양 이해'],
+      ['BEV 변환','[256,180,180]','위에서 본 지도로 펴기'],
+      ['Neck','[512,180,180]','작은·큰 물체 문맥 결합'],
+      ['CenterHead','6 × [C,180,180]','칸마다 중심·속성 예측'],
+      ['디코드 + NMS','[K, 11]','박스로 복원, 중복 제거']
+    ];
+    N.forEach((n,i) => {
+      const x = 5 + i*172, grp = S('g', {class:'frag', 'data-s': i+1}, g);
+      S('rect', {x, y:20, width:150, height:128, rx:5, class: i===5 ? 'f-heat-s s-heat' : 'f-bg s-line', 'stroke-width':1.5}, grp);
+      S('text', {x:x+12, y:44, style:'font-size:11px', class:'mono mut'}, grp, '0' + (i+1));
+      S('text', {x:x+12, y:68, style:'font-weight:700;font-size:15px'}, grp, n[0]);
+      S('text', {x:x+12, y:92, class:'mono violet', style:'font-size:11.5px'}, grp, n[1]);
+      S('text', {x:x+12, y:128, style:'font-size:12.5px'}, grp, n[2]);
+      if (i < 6) S('path', {d:`M${x+151} 84H${x+170}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, grp);
+    });
+    const B = [
+      [0,0,'CPU · 입력','f-panel2','mut',''],
+      [1,1,'CUDA 커널','f-teal-s','teal','1.36 ms'],
+      [2,3,'libspconv','f-violet-s','violet','22.3 ms'],
+      [4,5,'TensorRT','f-heat-s','heat','11.3 ms'],
+      [6,6,'CUDA + CPU','f-teal-s','teal','4.4 ms']
+    ];
+    B.forEach(([a,z,l,f,tc,ms]) => {
+      const x = 5 + a*172, wd = (z-a)*172 + 150;
+      S('rect', {x, y:170, width:wd, height:34, rx:4, class:f}, b);
+      S('text', {x:x+10, y:192, class:tc, style:'font-weight:600'}, b, l);
+      if (ms) S('text', {x:x+wd-10, y:192, class:'mono ' + tc, 'text-anchor':'end'}, b, ms);
+    });
+    S('text', {x:5, y:236, class:'mut', style:'font-size:12px'}, b, 'Orin 평균 지연 합계 ≈ 40 ms (≈ 23~25 FPS) · 3D 백본이 절반 이상');
+  }
+};
+
+/* ============================================================
+   S5 multi-sweep
+   ============================================================ */
+hooks.s5 = (function(){
+  let raf = 0, anim0 = 0;
+  const r = rng(11), sweeps = [];
+  const sensor = [0, -9];
+  function carPts(cx, cy, n, rr){
+    const o = {x:cx, y:cy, yaw:0, w:1.9, l:4.5}, out = [];
+    const edges = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
+    let made = 0, guard = 0;
+    while (made < n && guard++ < n*8){
+      const e = edges[Math.floor(rr()*4)], f = rr();
+      const x = o.x + e[0][0] + (e[1][0]-e[0][0])*f, y = o.y + e[0][1] + (e[1][1]-e[0][1])*f;
+      if (e[2][0]*(x - sensor[0]) + e[2][1]*(y - sensor[1]) > 0) continue;
+      out.push([x + gauss(rr)*0.03, y + gauss(rr)*0.03]); made++;
+    }
+    return out;
+  }
+  for (let s = 0; s < 10; s++){
+    const dt = s * 0.05;
+    const pts = [];
+    carPts(1.5 - 8*dt, 0, 34, r).forEach(p => pts.push(p));
+    carPts(-3.5, 5.5, 22, r).forEach(p => pts.push(p));
+    for (let k = 0; k < 90; k++){ const x = -9 + r()*18, y = -2.5 + r()*12; if (Math.abs(y) < 1.3 && x > -4 && x < 4.5) continue; if (r() < .5) pts.push([x, y]); }
+    sweeps.push({dt, pts});
+  }
+  function draw(k, t){
+    const P = prep($('#cv-s5')); if (!P) return;
+    const {ctx, w, h} = P;
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    const sc = Math.min(w/20, h/15), cx = w/2, cy = h*0.62;
+    const heat = tok('--heat'), vio = tok('--violet');
+    let show = k >= 4 ? 10 : 1;
+    if (k === 4 && !reduced){ show = Math.min(10, 1 + Math.floor((t - anim0) / 140)); }
+    for (let s = show-1; s >= 0; s--){
+      const sw = sweeps[s];
+      ctx.fillStyle = s === 0 ? heat : lerpHex(heat.startsWith('#')?heat:'#f2a24a', vio.startsWith('#')?vio:'#9a96fa', Math.min(1, .35 + s/9*.65));
+      ctx.globalAlpha = s === 0 ? 1 : .85;
+      for (const p of sw.pts){ ctx.beginPath(); ctx.arc(cx + p[0]*sc, cy - p[1]*sc, 2.1, 0, Math.PI*2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
+    ctx.fillText('움직이는 차 (8 m/s →)', cx + 1.5*sc - 60, cy + 1.9*sc);
+    ctx.fillText('서 있는 차', cx - 3.5*sc - 28, cy - 5.5*sc - 1.6*sc);
+    if (k >= 5){
+      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(cx - 2.2*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc, cy + 1.35*sc); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 3.7*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc - 5); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc + 5); ctx.closePath(); ctx.fillStyle = tok('--ink'); ctx.fill();
+      ctx.fillText('꼬리 길이 ≈ 속도 × 0.45 s', cx - 2.2*sc, cy + 2.6*sc);
+    }
+    ctx.fillStyle = tok('--muted');
+    ctx.fillText(k >= 4 ? '10 sweep 누적 (≈ 0.5 s)' : '1 sweep (현재)', 12, 20);
+    if (k === 4 && show < 10 && !reduced) raf = requestAnimationFrame(tt => draw(k, tt));
+  }
+  return {
+    step(k){ cancelAnimationFrame(raf); anim0 = performance.now(); draw(k, anim0); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S6 voxel grid
+   ============================================================ */
+hooks.s6 = {
+  init(){
+    const g = $('#s6grid'), pg = $('#s6pts');
+    for (let i = 0; i <= 10; i++) S('path', {d:`M${60+i*56} 30V422`, class:'s-grid', 'stroke-width':1}, g);
+    for (let j = 0; j <= 7; j++) S('path', {d:`M60 ${30+j*56}H620`, class:'s-grid', 'stroke-width':1}, g);
+    for (let i = 0; i < 10; i++) S('text', {x:60+i*56+28, y:440, class:'mono mut', 'text-anchor':'middle'}, g, String(880+i));
+    for (let r = 0; r < 7; r++) S('text', {x:52, y:30+r*56+32, class:'mono mut', 'text-anchor':'end'}, g, String(680-r));
+    S('text', {x:6, y:250, class:'mut', style:'font-size:12px', transform:'rotate(-90 14 250)'}, g, 'iy');
+    const r = rng(5);
+    for (let k = 0; k < 34; k++){
+      const x = 64 + r()*552, y = 34 + r()*384;
+      if (x > 280 && x < 344 && y > 194 && y < 258) continue;
+      S('circle', {cx:x, cy:y, r:3.5, class:'f-teal', opacity:.8}, pg);
+    }
+    for (const [x,y] of [[291.5,220.4],[328.8,205.5],[306.4,235.3]]) S('circle', {cx:x, cy:y, r:4, class:'f-teal'}, pg);
+  }
+};
+
+/* ============================================================
+   S7 sparsity canvas
+   ============================================================ */
+hooks.s7 = {
+  step(k){
+    if (k < 6) return;
+    const P = prep($('#cv-s7')); if (!P) return;
+    const {ctx, w, h} = P;
+    const cols = 40, rows = 25, cw = w/cols, ch = h/rows;
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++){
+      ctx.fillStyle = (x === 27 && y === 9) ? tok('--heat') : tok('--line');
+      ctx.fillRect(x*cw + .6, y*ch + .6, cw - 1.2, ch - 1.2);
+    }
+    ctx.fillStyle = hexA(tok('--heat').startsWith('#') ? tok('--heat') : '#c0650f', .45);
+    ctx.fillRect(12*cw + .6, 18*ch + .6, (cw - 1.2)*.3, ch - 1.2);
+  }
+};
+
+/* ============================================================
+   S8 dense vs sparse vs SubM
+   ============================================================ */
+hooks.s8 = (function(){
+  const N = 12, C = 40, O = 20;
+  const A = [[2,2],[3,2],[4,2],[2,3],[2,4],[7,5],[8,5],[8,6],[9,6],[5,9],[6,9],[10,10],[1,8],[9,1]];
+  const key = (x,y) => x + ',' + y;
+  const Aset = new Set(A.map(p => key(...p)));
+  function dilate(set, r){
+    const out = new Set();
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+      let hit = false;
+      for (let dy = -r; dy <= r && !hit; dy++) for (let dx = -r; dx <= r && !hit; dx++) if (set.has(key(x+dx, y+dy))) hit = true;
+      if (hit) out.add(key(x,y));
+    }
+    return out;
+  }
+  const D1 = dilate(Aset, 1), D2 = dilate(Aset, 2);
+  const coarse = new Set();
+  for (let oy = 0; oy < N/2; oy++) for (let ox = 0; ox < N/2; ox++){
+    let hit = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (Aset.has(key(2*ox+dx, 2*oy+dy))) hit = true;
+    if (hit) coarse.add(key(ox,oy));
+  }
+  let timer = 0, svg, gOut, gIn, gK, gGrid;
+  function build(){
+    svg = $('#s8svg'); svg.innerHTML = '';
+    gOut = S('g', {}, svg); gIn = S('g', {}, svg); gGrid = S('g', {}, svg); gK = S('g', {}, svg);
+  }
+  function grid(fine){
+    gGrid.innerHTML = '';
+    for (let i = 0; i <= N; i++){
+      S('path', {d:`M${O+i*C} ${O}V${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
+      S('path', {d:`M${O} ${O+i*C}H${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
+    }
+  }
+  function cells(g, set, cls, pad, op){
+    g.innerHTML = '';
+    for (const k of set){ const [x,y] = k.split(',').map(Number); S('rect', {x:O+x*C+pad, y:O+y*C+pad, width:C-2*pad, height:C-2*pad, rx:3, class:cls, opacity:op}, g); }
+  }
+  function kernelLoop(list, cellSize, span){
+    clearInterval(timer); gK.innerHTML = '';
+    if (!list.length) return;
+    const r = S('rect', {width:span*cellSize, height:span*cellSize, class:'f-none s-ink', 'stroke-width':2.5, rx:3}, gK);
+    let i = 0;
+    const place = () => { const [x,y] = list[i % list.length]; r.setAttribute('x', O + x*cellSize - (span-1)/2*C); r.setAttribute('y', O + y*cellSize - (span-1)/2*C); i++; };
+    place();
+    if (!reduced) timer = setInterval(place, list.length > 60 ? 70 : 260);
+  }
+  const all = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) all.push(key(x,y));
+  const toList = set => [...set].map(k => k.split(',').map(Number)).sort((a,b) => a[1]-b[1] || a[0]-b[0]);
+  return {
+    init: build,
+    step(k){
+      if (!svg) build();
+      const mode = $('#s8mode'), cnt = $('#s8count');
+      const inputOp = k >= 1 ? .9 : 1;
+      if (k <= 4 || k === 0){
+        grid(true);
+        cells(gIn, Aset, 'f-teal', 8, inputOp);
+      }
+      if (k === 0){ gOut.innerHTML = ''; clearInterval(timer); gK.innerHTML = ''; mode.textContent = '입력: 활성 칸 ' + Aset.size + ' / 144'; cnt.textContent = '활성 비율 ' + Math.round(Aset.size/144*100) + '%'; return; }
+      if (k === 1){ cells(gOut, new Set(all), 'f-heat', 1, .28); kernelLoop(toList(new Set(all)), C, 3); mode.textContent = 'Dense conv'; cnt.textContent = '계산 위치 144 / 144 · 출력 전부 채워짐'; }
+      if (k === 2){ cells(gOut, D1, 'f-heat', 1, .4); kernelLoop(toList(D1), C, 3); mode.textContent = 'Sparse conv (1층)'; cnt.textContent = `계산 위치 ${D1.size} · 활성 ${Aset.size} → ${D1.size}`; }
+      if (k === 3){ cells(gOut, D2, 'f-heat', 1, .4); kernelLoop(toList(D2), C, 3); mode.textContent = 'Sparse conv (2층)'; cnt.textContent = `활성 ${Aset.size} → ${D1.size} → ${D2.size} (번짐 누적)`; }
+      if (k === 4){ cells(gOut, Aset, 'f-heat', 1, .55); kernelLoop(toList(Aset), C, 3); mode.textContent = 'SubM conv'; cnt.textContent = `계산 위치 ${Aset.size} · 몇 층을 쌓아도 ${Aset.size}`; }
+      if (k >= 5){
+        grid(false);
+        cells(gIn, Aset, 'f-teal', 8, .6);
+        gOut.innerHTML = '';
+        for (const kk of coarse){ const [x,y] = kk.split(',').map(Number); S('rect', {x:O+x*2*C+2, y:O+y*2*C+2, width:2*C-4, height:2*C-4, rx:4, class:'f-heat', opacity:.35}, gOut); }
+        const list = toList(coarse).map(([x,y]) => [2*x, 2*y]);
+        kernelLoop(list, C, 3);
+        mode.textContent = 'Sparse conv, stride 2';
+        cnt.textContent = `12×12 → 6×6 · 활성 ${coarse.size} / 36`;
+      }
+    },
+    leave(){ clearInterval(timer); }
+  };
+})();
+
+/* ============================================================
+   S9 rulebook toy
+   ============================================================ */
+hooks.s9 = (function(){
+  const sites = {A:[1,1], B:[2,1], C:[2,2], D:[4,3]};
+  const px = (x,y) => [20 + x*44, 10 + (3-y)*44];
+  let timer = 0, rects = {}, arrow;
+  return {
+    init(){
+      const g = $('#s9grid');
+      for (let i = 0; i <= 5; i++) S('path', {d:`M${20+i*44} 10V186`, class:'s-grid'}, g);
+      for (let j = 0; j <= 4; j++) S('path', {d:`M20 ${10+j*44}H240`, class:'s-grid'}, g);
+      for (const n in sites){
+        const [x,y] = px(...sites[n]);
+        rects[n] = S('rect', {x:x+4, y:y+4, width:36, height:36, rx:4, class:'f-teal', opacity:.85}, g);
+        S('text', {x:x+22, y:y+27, 'text-anchor':'middle', style:'font-weight:700;fill:var(--panel)'}, g, n);
+      }
+      arrow = S('path', {d:'', class:'s-heat', 'stroke-width':3, 'marker-end':'url(#ah-heat)', opacity:0}, g);
+      S('text', {x:20, y:204, class:'mono mut', style:'font-size:11px'}, g, 'x →   (y ↑)');
+    },
+    step(k){
+      clearInterval(timer);
+      const rows = $$('#s9rule tbody tr');
+      rows.forEach(r => r.style.background = '');
+      const gs = $$('#s9g span'), os = $$('#s9o span');
+      [...gs, ...os].forEach(s => s.classList.remove('hi','hi2'));
+      Object.values(rects).forEach(r => { r.setAttribute('class','f-teal'); });
+      if (arrow) arrow.setAttribute('opacity', 0);
+      if (k === 3){
+        rows[0].style.background = 'var(--heat-soft)';
+        const names = ['A','B','C','D']; let i = 0;
+        const tick = () => {
+          [...gs, ...os].forEach(s => s.classList.remove('hi','hi2'));
+          Object.values(rects).forEach(r => r.setAttribute('class','f-teal'));
+          const r = i % 4;
+          gs[r*2].classList.add('hi'); gs[r*2+1].classList.add('hi');
+          os[r*2].classList.add('hi2'); os[r*2+1].classList.add('hi2');
+          rects[names[r]].setAttribute('class','f-heat');
+          i++;
+        };
+        tick(); if (!reduced) timer = setInterval(tick, 900);
+      }
+      if (k === 4){
+        rows[1].style.background = 'var(--heat-soft)';
+        rects.B.setAttribute('class','f-heat'); rects.A.setAttribute('class','f-violet');
+        const [bx,by] = px(...sites.B), [ax,ay] = px(...sites.A);
+        arrow.setAttribute('d', `M${bx+10} ${by+22}L${ax+36} ${ay+22}`); arrow.setAttribute('opacity', 1);
+        os[0].classList.add('hi2'); os[1].classList.add('hi2');
+      }
+    },
+    leave(){ clearInterval(timer); }
+  };
+})();
+
+/* ============================================================
+   S10 backbone cuboids
+   ============================================================ */
+hooks.s10 = {
+  init(){
+    const svg = $('#s10svg');
+    const st = [
+      {n:'conv_input + conv1', c:16, z:41, xy:1440, op:'SubM × 5'},
+      {n:'conv2', c:32, z:21, xy:720, op:'SpConv s2 + SubM × 4'},
+      {n:'conv3', c:64, z:11, xy:360, op:'SpConv s2 + SubM × 4'},
+      {n:'conv4', c:128, z:5, xy:180, op:'SpConv s2 + SubM × 4'},
+      {n:'extra_conv', c:128, z:2, xy:180, op:'SpConv z만 s2'}
+    ];
+    let x = 10; const base = 290;
+    S('text', {x:10, y:30, class:'mut', style:'font-size:12px'}, svg, '정사각형 = 가로세로 해상도, 두께 = 채널 수 (로그 눈금)');
+    st.forEach((s,i) => {
+      const side = 40 + 100 * Math.log2(s.xy/180)/3, d = 8 + 60 * Math.log2(s.c/16)/3;
+      const dx = d*0.8, dy = d*0.6;
+      const g = S('g', {class:'frag', 'data-s': i+2}, svg);
+      const y0 = base - side;
+      const cls = i === 4 ? 'f-heat-s s-heat' : 'f-violet-s s-violet';
+      S('path', {d:`M${x} ${y0}L${x+dx} ${y0-dy}L${x+dx+side} ${y0-dy}L${x+side} ${y0}Z`, class:cls, 'stroke-width':1.2}, g);
+      S('path', {d:`M${x+side} ${y0}L${x+side+dx} ${y0-dy}L${x+side+dx} ${base-dy}L${x+side} ${base}Z`, class:cls, 'stroke-width':1.2, opacity:.8}, g);
+      S('rect', {x, y:y0, width:side, height:side, class:cls, 'stroke-width':1.5}, g);
+      const tx = x;
+      S('text', {x:tx, y:base+24, style:'font-weight:700;font-size:13px'}, g, s.n);
+      S('text', {x:tx, y:base+44, class:'mono violet'}, g, `C ${s.c} · Z ${s.z}`);
+      S('text', {x:tx, y:base+62, class:'mono violet'}, g, `${s.xy} × ${s.xy}`);
+      S('text', {x:tx, y:base+80, class:'mut', style:'font-size:11.5px'}, g, s.op);
+      const nx = x + side + dx + 40;
+      if (i < 4) S('path', {d:`M${x+side+dx+6} ${base-side/2}H${nx-6}`, class:'s-mut', 'stroke-width':1.5, 'marker-end':'url(#ah-mut)'}, g);
+      x = nx;
+    });
+    const rg = S('g', {class:'frag', 'data-s':7}, svg);
+    const bx = [['SubM','f-violet-s'],['BN','f-panel2'],['ReLU','f-panel2'],['SubM','f-violet-s'],['BN','f-panel2']];
+    let rx = 60; const ry = 410;
+    S('text', {x:10, y:ry+20, class:'mono'}, rg, 'x');
+    S('path', {d:`M24 ${ry+15}H${rx-4}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
+    bx.forEach(([t,c]) => { S('rect', {x:rx, y:ry, width:62, height:30, rx:4, class:c + ' s-line'}, rg); S('text', {x:rx+31, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, t); S('path', {d:`M${rx+62} ${ry+15}H${rx+78}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg); rx += 80; });
+    S('circle', {cx:rx+12, cy:ry+15, r:12, class:'f-heat-s s-heat'}, rg); S('text', {x:rx+12, y:ry+20, 'text-anchor':'middle', class:'heat', style:'font-weight:700'}, rg, '+');
+    S('path', {d:`M${rx+24} ${ry+15}H${rx+44}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
+    S('rect', {x:rx+46, y:ry, width:62, height:30, rx:4, class:'f-panel2 s-line'}, rg); S('text', {x:rx+77, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, 'ReLU');
+    S('path', {d:`M40 ${ry+15}V${ry-18}H${rx+12}V${ry+1}`, class:'f-none s-heat', 'stroke-width':1.8, 'marker-end':'url(#ah-heat)'}, rg);
+    S('text', {x:(40+rx)/2, y:ry-24, 'text-anchor':'middle', class:'heat', style:'font-size:12px'}, rg, '지름길 (identity)');
+  }
+};
+
+/* ============================================================
+   S11 height -> channels
+   ============================================================ */
+hooks.s11 = (function(){
+  let cellsZ = [], plateCells = [];
+  const W = 34, X0 = 150, Y1 = 212, Y0 = 256, XF = 106, YF = 376;
+  return {
+    init(){
+      const svg = $('#s11svg');
+      const P = (i,j) => [140 + (i-j)*22, 36 + (i+j)*11];
+      const r = rng(3);
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++){
+        const a = P(i,j), b = P(i+1,j), c = P(i+1,j+1), d = P(i,j+1);
+        const on = r() < .3 || (i === 3 && j === 2);
+        const p = S('path', {d:`M${a}L${b}L${c}L${d}Z`, class: on ? 'f-teal-s s-grid' : 'f-panel s-grid', 'stroke-width':1}, svg);
+        plateCells.push({p, on});
+      }
+      // pillar on cell (3,2)
+      const top = P(3,2), right = P(4,2), bot = P(4,3), left = P(3,3);
+      const cube = (h0, h1, cls) => {
+        S('path', {d:`M${left[0]} ${left[1]-h1}L${bot[0]} ${bot[1]-h1}L${bot[0]} ${bot[1]-h0}L${left[0]} ${left[1]-h0}Z`, class:cls, opacity:.85, 'stroke-width':1}, svg);
+        S('path', {d:`M${bot[0]} ${bot[1]-h1}L${right[0]} ${right[1]-h1}L${right[0]} ${right[1]-h0}L${bot[0]} ${bot[1]-h0}Z`, class:cls, opacity:.65, 'stroke-width':1}, svg);
+        S('path', {d:`M${top[0]} ${top[1]-h1}L${right[0]} ${right[1]-h1}L${bot[0]} ${bot[1]-h1}L${left[0]} ${left[1]-h1}Z`, class:cls, 'stroke-width':1}, svg);
+      };
+      cube(0, 26, 'f-teal s-teal'); cube(26, 52, 'f-violet s-violet');
+      S('text', {x:300, y:70, style:'font-size:12.5px'}, svg, 'BEV 한 칸 (y, x) 위의 특징 기둥');
+      S('text', {x:300, y:90, class:'mut', style:'font-size:12px'}, svg, '보라 = z 1층, 청록 = z 0층');
+      S('text', {x:300, y:110, class:'mut', style:'font-size:12px'}, svg, '격자 180 × 180, 한 칸 0.6 m');
+      S('path', {d:`M${bot[0]} ${bot[1]+4}L${X0-10} ${Y1-4}`, class:'s-mut', 'stroke-dasharray':'3 4'}, svg);
+      S('text', {x:X0 + 8*W + 10, y:Y1+22, class:'mono violet'}, svg, 'z=1 : 128ch');
+      S('text', {x:X0 + 8*W + 10, y:Y0+22, class:'mono teal'}, svg, 'z=0 : 128ch');
+      S('text', {x:12, y:Y1+22, class:'mut', style:'font-size:11px'}, svg, '(128개 중 8개)');
+      const lab = S('g', {class:'frag', 'data-s':3}, svg);
+      S('text', {x:XF, y:YF-12, class:'mono heat'}, lab, 'reshape → 256ch : 채널 번호 = c·2 + d');
+      for (let i = 0; i < 16; i++) S('text', {x:XF + i*W + W/2, y:YF+50, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, lab, String(i));
+      for (let d = 0; d < 2; d++) for (let c = 0; c < 8; c++){
+        const g = S('g', {class:'mv'}, svg);
+        S('rect', {x:0, y:0, width:W-3, height:30, rx:3, class: d ? 'f-violet' : 'f-teal', opacity:.9}, g);
+        S('text', {x:(W-3)/2, y:20, 'text-anchor':'middle', class:'mono', style:'font-size:10.5px;fill:var(--panel)'}, g, 'c' + c);
+        cellsZ.push({g, c, d});
+      }
+    },
+    step(k){
+      plateCells.forEach(({p,on}) => p.setAttribute('class', on ? 'f-teal-s s-grid' : (k >= 2 ? 'f-panel2 s-grid' : 'f-panel s-grid')));
+      cellsZ.forEach(({g,c,d}) => {
+        let x, y;
+        if (k >= 3){ x = XF + (c*2 + d)*W; y = YF; }
+        else { x = X0 + c*W; y = d ? Y1 : Y0; }
+        g.style.transform = `translate(${x}px, ${y}px)`;
+      });
+    }
+  };
+})();
+
+/* ============================================================
+   S13 head diagram
+   ============================================================ */
+hooks.s13 = {
+  init(){
+    const svg = $('#s13svg');
+    const tasks = [['승용차'],['트럭','공사차량'],['버스','트레일러'],['방호벽'],['오토바이','자전거'],['보행자','콘']];
+    const hm = [1,2,2,1,2,2];
+    S('rect', {x:260, y:6, width:200, height:40, rx:4, class:'f-violet-s s-violet'}, svg);
+    S('text', {x:360, y:31, 'text-anchor':'middle', class:'mono'}, svg, 'Neck 출력 512×180²');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    S('path', {d:'M360 46V66', class:'s-ink', 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:260, y:68, width:200, height:40, rx:4, class:'f-teal-s s-teal'}, g2);
+    S('text', {x:360, y:93, 'text-anchor':'middle', class:'mono'}, g2, 'shared Conv3×3 → 64×180²');
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg), g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    const heads = [['hm',0],['reg',2],['height',1],['dim',3],['rot',2],['vel',2]];
+    tasks.forEach((t,i) => {
+      const x = 8 + i*119, cx = x + 54;
+      S('path', {d:`M360 108L${cx} 140`, class:'s-mut', 'stroke-width':1}, g3);
+      S('rect', {x, y:142, width:108, height:52, rx:4, class:'f-bg s-line'}, g3);
+      S('text', {x:cx, y:160, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, g3, 'task ' + (i+1));
+      S('text', {x:cx, y:178, 'text-anchor':'middle', style:'font-size:12.5px;font-weight:600'}, g3, t[0]);
+      if (t[1]) S('text', {x:cx, y:191, 'text-anchor':'middle', style:'font-size:11.5px'}, g3, t[1]);
+      heads.forEach(([h,c],j) => {
+        const y = 206 + j*36, ch = h === 'hm' ? hm[i] : c;
+        S('rect', {x, y, width:108, height:30, rx:3, class: h === 'hm' ? 'f-heat-s s-heat' : 'f-teal-s s-teal'}, g4);
+        S('text', {x:x+8, y:y+20, class:'mono', style:'font-size:11.5px'}, g4, h);
+        S('text', {x:x+100, y:y+20, 'text-anchor':'end', class:'mono ' + (h === 'hm' ? 'heat' : 'teal'), style:'font-size:11.5px;font-weight:600'}, g4, String(ch));
+      });
+    });
+    const g5 = S('g', {class:'frag', 'data-s':5}, svg);
+    S('text', {x:360, y:452, 'text-anchor':'middle', style:'font-size:13px'}, g5, '출력 36개, 각각 [1, C, 180, 180] · 채널 합 70');
+  }
+};
+
+/* ============================================================
+   S14 heatmap
+   ============================================================ */
+const TASKS = ['승용차','트럭·공사차량','버스·트레일러','방호벽','오토바이·자전거','보행자·콘'];
+const HEAT = (function(){
+  const r = rng(21), maps = [];
+  for (let t = 0; t < 6; t++){
+    const m = new Float32Array(180*180);
+    for (let i = 0; i < m.length; i++) m[i] = r()*r()*0.04;
+    for (const o of OBJS){
+      if (o.task !== t) continue;
+      const col = (o.x + 54)/0.6, row = (o.y + 54)/0.6;
+      const ci = Math.floor(col), ri = Math.floor(row);
+      const rad = 2, sig = (2*rad+1)/6;
+      const peak = o === OBJS[0] ? 0.91 : 0.7 + r()*0.25;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++){
+        const x = ci + dx, y = ri + dy; if (x < 0 || y < 0 || x >= 180 || y >= 180) continue;
+        const v = peak * Math.exp(-(dx*dx + dy*dy)/(2*sig*sig));
+        const idx = y*180 + x; m[idx] = Math.max(m[idx], v);
+      }
+    }
+    maps.push(m);
+  }
+  return maps;
+})();
+hooks.s14 = (function(){
+  let task = 0, lastK = 0;
+  function draw(k){
+    const P = prep($('#cv-s14')); if (!P) return;
+    const {ctx, w, h} = P, cs = Math.min(w,h)/180;
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    const heat = tok('--heat'), hx = heat.startsWith('#') ? heat : '#c0650f';
+    const m = HEAT[k >= 1 ? task : 0];
+    if (k >= 1){
+      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++){
+        const v = m[r*180 + c]; if (v < 0.015) continue;
+        ctx.fillStyle = hexA(hx, Math.min(1, v*1.1));
+        ctx.fillRect(c*cs, (179-r)*cs, cs+.3, cs+.3);
+      }
+    }
+    // grid hint
+    ctx.strokeStyle = tok('--line'); ctx.lineWidth = 1;
+    for (let i = 0; i <= 180; i += 30){ ctx.beginPath(); ctx.moveTo(i*cs, 0); ctx.lineTo(i*cs, 180*cs); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i*cs); ctx.lineTo(180*cs, i*cs); ctx.stroke(); }
+    if (k >= 4){
+      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = .8;
+      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++) if (m[r*180+c] > 0.1) ctx.strokeRect(c*cs+.4, (179-r)*cs+.4, cs-.8, cs-.8);
+    }
+    ctx.fillStyle = tok('--ink');
+    const e = 90*cs; ctx.beginPath(); ctx.moveTo(e+6, e); ctx.lineTo(e-4, e-4); ctx.lineTo(e-4, e+4); ctx.closePath(); ctx.fill();
+    ctx.font = '11px ' + tok('--mono'); ctx.fillStyle = tok('--muted');
+    ctx.fillText('30칸 = 18 m', 4, 180*cs - 6);
+    if (k >= 3 && task === 0){
+      ctx.strokeStyle = tok('--rose'); ctx.lineWidth = 2;
+      ctx.strokeRect((110-2)*cs, (179-95-2)*cs, 5*cs, 5*cs);
+    }
+  }
+  return {
+    init(){
+      const b = $('#s14btns');
+      TASKS.forEach((t,i) => {
+        const x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.className = i === 0 ? 'sel' : '';
+        x.addEventListener('click', e => { e.stopPropagation(); task = i; $$('button', b).forEach((y,j) => y.classList.toggle('sel', j === i)); draw(Math.max(lastK, 1)); });
+        b.appendChild(x);
+      });
+      const tb = $('#s14tab'), sig = 5/6;
+      let html = '';
+      for (let dy = 2; dy >= -2; dy--){
+        html += '<tr>';
+        for (let dx = -2; dx <= 2; dx++){
+          const v = 0.91*Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+          html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v.toFixed(2)}</td>`;
+        }
+        html += '</tr>';
+      }
+      tb.innerHTML = html;
+    },
+    step(k){ lastK = k; draw(k); }
+  };
+})();
+
+/* ============================================================
+   S15 regression encodings
+   ============================================================ */
+hooks.s15 = {
+  init(){
+    const svg = $('#s15svg');
+    // panel A: offset
+    const gA = S('g', {class:'frag', 'data-s':1}, svg);
+    S('rect', {x:0, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gA);
+    S('text', {x:12, y:22, style:'font-weight:700'}, gA, '오프셋: 칸 안의 정확한 위치');
+    const cx0 = 90, cy0 = 40, cz = 170;
+    for (let i = -1; i <= 2; i++){ S('path', {d:`M${cx0+i*cz*0.5} ${cy0}V${cy0+cz}`, class:'s-grid'}, gA); }
+    S('rect', {x:cx0, y:cy0, width:cz, height:cz, class:'f-heat-s s-heat', 'stroke-width':2}, gA);
+    const px = cx0 + 0.37*cz, py = cy0 + (1-0.62)*cz;
+    S('circle', {cx:cx0, cy:cy0+cz, r:5, class:'f-ink'}, gA);
+    S('text', {x:cx0-8, y:cy0+cz+18, class:'mono', 'text-anchor':'end', style:'font-size:11px'}, gA, '(110, 95)');
+    S('path', {d:`M${cx0} ${cy0+cz}H${px}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)'}, gA);
+    S('path', {d:`M${px} ${cy0+cz}V${py+6}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)', 'stroke-dasharray':'4 3'}, gA);
+    S('circle', {cx:px, cy:py, r:6, class:'f-rose'}, gA);
+    S('text', {x:cx0 + 0.18*cz, y:cy0+cz-8, class:'mono teal', 'text-anchor':'middle', style:'font-size:11px'}, gA, 'Δx 0.37');
+    S('text', {x:px+8, y:cy0+cz-0.3*cz, class:'mono teal', style:'font-size:11px'}, gA, 'Δy 0.62');
+    S('text', {x:cx0+cz+8, y:cy0+14, class:'mut', style:'font-size:11.5px'}, gA, '1칸 = 0.6 m');
+    // panel B: log scale
+    const gB = S('g', {class:'frag', 'data-s':3}, svg);
+    S('rect', {x:370, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gB);
+    S('text', {x:382, y:22, style:'font-weight:700'}, gB, '크기: log 눈금');
+    const items = [['콘',0.4],['보행자',0.7],['승용차',4.6],['버스',11]];
+    S('text', {x:382, y:50, class:'mut', style:'font-size:12px'}, gB, '길이 그대로 (선형)');
+    S('path', {d:'M390 80H700', class:'s-mut'}, gB);
+    items.forEach(([n,v]) => { const x = 390 + v/12*310; S('circle', {cx:x, cy:80, r:4.5, class:'f-teal'}, gB); });
+    S('text', {x:390, y:100, class:'mut mono', style:'font-size:10.5px'}, gB, '0');
+    S('text', {x:700, y:100, class:'mut mono', 'text-anchor':'end', style:'font-size:10.5px'}, gB, '12 m');
+    S('text', {x:392, y:66, class:'rose', style:'font-size:11px'}, gB, '작은 물체들이 한쪽에 몰림');
+    S('text', {x:382, y:138, class:'mut', style:'font-size:12px'}, gB, 'log(길이)');
+    S('path', {d:'M390 170H700', class:'s-mut'}, gB);
+    const lx = v => 390 + (Math.log(v) - Math.log(0.3)) / (Math.log(15) - Math.log(0.3)) * 310;
+    items.forEach(([n,v],i) => { const x = lx(v); S('circle', {cx:x, cy:170, r:4.5, class:'f-heat'}, gB); S('text', {x, y: i%2 ? 196 : 158, 'text-anchor':'middle', style:'font-size:11.5px'}, gB, n); });
+    S('text', {x:382, y:226, class:'mut', style:'font-size:11.5px'}, gB, '같은 간격 = 같은 "몇 배" · exp()로 되돌리면 항상 > 0');
+    // panel C: sin/cos
+    const gC = S('g', {class:'frag', 'data-s':4}, svg);
+    S('rect', {x:0, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gC);
+    S('text', {x:12, y:280, style:'font-weight:700'}, gC, '방향: 원 위의 점 (cos θ, sin θ)');
+    const ox = 120, oy = 385, R = 78;
+    S('circle', {cx:ox, cy:oy, r:R, class:'f-none s-mut'}, gC);
+    S('path', {d:`M${ox-R-10} ${oy}H${ox+R+10}M${ox} ${oy-R-10}V${oy+R+10}`, class:'s-grid'}, gC);
+    const a = Math.PI/6, qx = ox + R*Math.cos(a), qy = oy - R*Math.sin(a);
+    S('path', {d:`M${ox} ${oy}L${qx} ${qy}`, class:'s-heat', 'stroke-width':2}, gC);
+    S('circle', {cx:qx, cy:qy, r:5, class:'f-heat'}, gC);
+    S('text', {x:qx+6, y:qy-6, class:'mono heat', style:'font-size:11px'}, gC, '(0.866, 0.50)');
+    S('path', {d:`M${ox+28} ${oy}A28 28 0 0 0 ${ox+28*Math.cos(a)} ${oy-28*Math.sin(a)}`, class:'f-none s-heat'}, gC);
+    S('text', {x:ox+34, y:oy-5, class:'heat', style:'font-size:11px'}, gC, '30°');
+    const b1 = Math.PI*179/180, b2 = -Math.PI*179/180;
+    S('circle', {cx:ox + R*Math.cos(b1), cy:oy - R*Math.sin(b1), r:4.5, class:'f-violet'}, gC);
+    S('circle', {cx:ox + R*Math.cos(b2), cy:oy - R*Math.sin(b2), r:4.5, class:'f-violet'}, gC);
+    S('text', {x:215, y:350, class:'violet', style:'font-size:11.5px'}, gC, '+179° 와 −179°');
+    S('text', {x:215, y:368, style:'font-size:11.5px'}, gC, '숫자로는 358 차이');
+    S('text', {x:215, y:386, style:'font-size:11.5px'}, gC, '원 위에선 바로 옆');
+    S('text', {x:215, y:420, class:'mono', style:'font-size:11px'}, gC, 'θ = atan2(sin, cos)');
+    // panel D: velocity + height
+    const gD = S('g', {class:'frag', 'data-s':2}, svg);
+    S('rect', {x:370, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gD);
+    S('text', {x:382, y:280, style:'font-weight:700'}, gD, '높이 z와 속도 v');
+    S('path', {d:'M392 460H560', class:'s-mut', 'stroke-width':2}, gD);
+    S('rect', {x:420, y:405, width:110, height:40, rx:6, class:'f-teal-s s-teal'}, gD);
+    S('path', {d:'M475 460V427', class:'s-heat', 'stroke-width':2, 'marker-end':'url(#ah-heat)'}, gD);
+    S('circle', {cx:475, cy:425, r:4, class:'f-heat'}, gD);
+    S('text', {x:482, y:398, class:'mono heat', style:'font-size:11px'}, gD, 'z (중심 높이)');
+    S('text', {x:392, y:486, class:'mut', style:'font-size:11px'}, gD, '옆에서 본 모습 · 지면');
+    const gV = S('g', {class:'frag', 'data-s':5}, svg);
+    S('g', {}, gV);
+    const vg = S('g', {transform:'translate(630 380) rotate(-30)'}, gV);
+    S('rect', {x:-38, y:-15, width:76, height:30, rx:5, class:'f-teal-s s-teal'}, vg);
+    S('path', {d:'M0 0H70', class:'s-ink', 'stroke-width':2.2, 'marker-end':'url(#ah-ink)'}, vg);
+    S('text', {x:590, y:318, class:'mono', style:'font-size:11px'}, gV, 'v = (3.2, 0.4) m/s');
+    S('text', {x:590, y:452, class:'mut', style:'font-size:11px'}, gV, '위에서 본 모습');
+  }
+};
+
+/* ============================================================
+   S16 gaussian target
+   ============================================================ */
+hooks.s16 = {
+  init(){
+    const svg = $('#s16svg'), C = 30, cols = 16, rows = 9, ox = 40, oy = 16;
+    const c0 = 110 - 8, r0 = 95 - 4; // window: cols 102..117, rows 91..99
+    for (let i = 0; i <= cols; i++) S('path', {d:`M${ox+i*C} ${oy}V${oy+rows*C}`, class:'s-grid'}, svg);
+    for (let j = 0; j <= rows; j++) S('path', {d:`M${ox} ${oy+j*C}H${ox+cols*C}`, class:'s-grid'}, svg);
+    const toPx = (col, row) => [ox + (col - c0)*C, oy + (r0 + rows - row)*C];
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    const [hx, hy] = toPx(110, 96);
+    S('rect', {x:hx, y:hy, width:C, height:C, class:'f-heat-s s-heat', 'stroke-width':2}, g1);
+    // car footprint
+    const cc = [110.37, 95.62], L = 4.62/0.6, Wd = 1.94/0.6, a = 0.524;
+    const pts = [[L/2,Wd/2],[-L/2,Wd/2],[-L/2,-Wd/2],[L/2,-Wd/2]].map(([u,v]) => {
+      const x = cc[0] + u*Math.cos(a) - v*Math.sin(a), y = cc[1] + u*Math.sin(a) + v*Math.cos(a);
+      const [px, py] = toPx(x, y); return px + ',' + py;
+    });
+    S('polygon', {points:pts.join(' '), class:'f-none s-teal', 'stroke-width':2}, svg);
+    const [cx, cy] = toPx(cc[0], cc[1]);
+    S('circle', {cx, cy, r:4.5, class:'f-rose'}, svg);
+    S('text', {x:ox, y:oy+rows*C+18, class:'mono mut', style:'font-size:11px'}, svg, `열 ${c0} … ${c0+cols-1}  (1칸 = 0.6 m)`);
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const [ex, ey] = toPx(110.5, 95.5);
+    S('circle', {cx:ex, cy:ey, r:2.5*C, class:'f-heat s-heat', 'fill-opacity':.12, 'stroke-dasharray':'5 4'}, g3);
+    S('path', {d:`M${ex} ${ey}H${ex+2*C}`, class:'s-heat', 'stroke-width':2}, g3);
+    S('text', {x:ex+C, y:ey-6, 'text-anchor':'middle', class:'mono heat', style:'font-size:11px'}, g3, 'r = 2');
+    const tb = $('#s16tab'), sig = 5/6; let html = '';
+    for (let dy = 2; dy >= -2; dy--){
+      html += '<tr>';
+      for (let dx = -2; dx <= 2; dx++){
+        const v = Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+        html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v < 0.005 ? '0.00' : v.toFixed(2)}</td>`;
+      }
+      html += '</tr>';
+    }
+    tb.innerHTML = html;
+  }
+};
+
+/* ============================================================
+   S17 focal loss chart
+   ============================================================ */
+hooks.s17 = {
+  init(){
+    const svg = $('#s17svg');
+    const plot = (x0, title, curves) => {
+      const W = 300, H = 280, y0 = 40, ymax = 3;
+      S('text', {x:x0, y:22, style:'font-weight:700'}, svg, title);
+      const X = p => x0 + 30 + p*(W-30), Y = v => y0 + H - Math.min(v, ymax)/ymax*H;
+      for (let v = 0; v <= 3; v++){ S('path', {d:`M${X(0)} ${Y(v)}H${X(1)}`, class:'s-grid'}, svg); S('text', {x:X(0)-8, y:Y(v)+4, 'text-anchor':'end', class:'mono mut', style:'font-size:10.5px'}, svg, String(v)); }
+      [0, .5, 1].forEach(p => S('text', {x:X(p), y:y0+H+18, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, svg, String(p)));
+      S('text', {x:X(.5), y:y0+H+36, 'text-anchor':'middle', class:'mut', style:'font-size:11.5px'}, svg, '예측 확률 p');
+      S('text', {x:x0, y:y0-6, class:'mut', style:'font-size:11px'}, svg, 'loss');
+      curves.forEach(c => {
+        const g = S('g', {class:'frag', 'data-s':c.s}, svg);
+        let d = '';
+        for (let i = 1; i < 200; i++){ const p = i/200, v = c.f(p); d += (d ? 'L' : 'M') + X(p).toFixed(1) + ' ' + Y(v).toFixed(1); }
+        S('path', {d, class:'f-none ' + c.cls, 'stroke-width': c.dash ? 1.6 : 2.4, 'stroke-dasharray': c.dash ? '5 4' : 'none'}, g);
+        S('text', {x:c.lx, y:c.ly, class:c.tc, style:'font-size:11.5px'}, g, c.label);
+      });
+    };
+    plot(0, '정답 칸 (y = 1)', [
+      {s:1, f:p => -Math.log(p), cls:'s-mut', dash:true, tc:'mut', label:'BCE: −log p', lx:60, ly:120},
+      {s:2, f:p => -((1-p)**2)*Math.log(p), cls:'s-heat', tc:'heat', label:'Focal: −(1−p)² log p', lx:95, ly:250}
+    ]);
+    plot(370, '빈 칸 (y < 1)', [
+      {s:1, f:p => -Math.log(1-p), cls:'s-mut', dash:true, tc:'mut', label:'BCE: −log(1−p)', lx:470, ly:150},
+      {s:3, f:p => -(p**2)*Math.log(1-p), cls:'s-teal', tc:'teal', label:'y = 0: −p² log(1−p)', lx:560, ly:220},
+      {s:3, f:p => -((1-0.49)**4)*(p**2)*Math.log(1-p), cls:'s-violet', tc:'violet', label:'y = 0.49 (봉우리 옆)', lx:560, ly:300}
+    ]);
+  }
+};
+
+/* ============================================================
+   S18 postprocess: candidates, decode, rotated NMS
+   ============================================================ */
+function polyArea(p){ let a = 0; for (let i = 0; i < p.length; i++){ const [x1,y1] = p[i], [x2,y2] = p[(i+1)%p.length]; a += x1*y2 - x2*y1; } return Math.abs(a)/2; }
+function clip(subj, clipP){
+  let out = subj;
+  for (let i = 0; i < clipP.length; i++){
+    const A = clipP[i], B = clipP[(i+1)%clipP.length], inp = out; out = [];
+    if (!inp.length) break;
+    const side = P => (B[0]-A[0])*(P[1]-A[1]) - (B[1]-A[1])*(P[0]-A[0]);
+    for (let j = 0; j < inp.length; j++){
+      const P = inp[j], Q = inp[(j+1)%inp.length], sp = side(P), sq = side(Q);
+      if (sp >= 0) out.push(P);
+      if ((sp >= 0) !== (sq >= 0)){ const t = sp/(sp - sq); out.push([P[0] + (Q[0]-P[0])*t, P[1] + (Q[1]-P[1])*t]); }
+    }
+  }
+  return out;
+}
+function iou(a, b){
+  const pa = corners(a), pb = corners(b);
+  const ccw = p => { let s = 0; for (let i = 0; i < p.length; i++){ const [x1,y1] = p[i], [x2,y2] = p[(i+1)%p.length]; s += x1*y2 - x2*y1; } return s > 0 ? p : p.slice().reverse(); };
+  const inter = clip(ccw(pa), ccw(pb));
+  const I = inter.length > 2 ? polyArea(inter) : 0;
+  return I / (a.l*a.w + b.l*b.w - I);
+}
+const CANDS = (function(){
+  const r = rng(99), out = [];
+  OBJS.forEach((o, oi) => {
+    if (Math.abs(o.x) > 30 || Math.abs(o.y) > 24) return;
+    const ci = Math.floor((o.x+54)/0.6), ri = Math.floor((o.y+54)/0.6);
+    const m = HEAT[o.task];
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+      const v = m[(ri+dy)*180 + ci+dx];
+      if (!(v > 0.1)) continue;
+      out.push({oi, score:v, cell:[ci+dx, ri+dy], x:o.x + gauss(r)*0.18, y:o.y + gauss(r)*0.18, yaw:o.yaw + gauss(r)*0.06, w:o.w*(1+gauss(r)*0.05), l:o.l*(1+gauss(r)*0.05), cls:o.cls});
+    }
+  });
+  out.sort((a,b) => b.score - a.score);
+  const keep = [], dead = new Set();
+  out.forEach((c,i) => {
+    if (dead.has(i)) return;
+    keep.push(i);
+    for (let j = i+1; j < out.length; j++) if (!dead.has(j) && iou(c, out[j]) > 0.2) dead.add(j);
+  });
+  out.forEach((c,i) => c.keep = keep.includes(i));
+  return out;
+})();
+hooks.s18 = (function(){
+  let raf = 0, t0 = 0;
+  function draw(k, t){
+    const P = prep($('#cv-s18')); if (!P) return;
+    const {ctx, w, h} = P;
+    const R = 26, sc = Math.min(w,h)/(2*R), cx = w/2, cy = h/2, m = {sc, cx, cy};
+    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha = .35;
+    for (const p of POINTS){ const X = cx + p[0]*sc, Y = cy - p[1]*sc; if (X<0||Y<0||X>w||Y>h) continue; ctx.fillStyle = zColor(p[2]); ctx.fillRect(X-.7, Y-.7, 1.4, 1.4); }
+    ctx.globalAlpha = 1;
+    const heat = tok('--heat'), rose = tok('--rose'), ink = tok('--ink');
+    if (k === 1){
+      for (const c of CANDS){ const X = cx + ((c.cell[0]+.5)*0.6 - 54)*sc, Y = cy - ((c.cell[1]+.5)*0.6 - 54)*sc; ctx.fillStyle = heat; ctx.globalAlpha = .4 + .6*c.score; ctx.beginPath(); ctx.arc(X, Y, 3, 0, Math.PI*2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+    if (k === 2){ for (const c of CANDS){ ctx.globalAlpha = .3 + .6*c.score; strokeBox(ctx, c, m, heat, 1.2, false); } ctx.globalAlpha = 1; }
+    if (k === 3){
+      const e = reduced ? 1 : Math.min(1, (t - t0)/1600);
+      for (const c of CANDS){
+        if (c.keep){ strokeBox(ctx, c, m, heat, 2, true); continue; }
+        if (e < .5){ ctx.globalAlpha = .9; strokeBox(ctx, c, m, rose, 1.4, false); }
+        else { ctx.globalAlpha = Math.max(0, 1 - (e - .5)*2); strokeBox(ctx, c, m, rose, 1.4, false); }
+      }
+      ctx.globalAlpha = 1;
+      if (e < 1) raf = requestAnimationFrame(tt => draw(k, tt));
+    }
+    if (k >= 4){
+      ctx.font = '11px ' + tok('--sans');
+      for (const c of CANDS){ if (!c.keep) continue; strokeBox(ctx, c, m, heat, 2, true); const X = cx + c.x*sc, Y = cy - c.y*sc; ctx.fillStyle = ink; ctx.fillText(`${c.cls} ${c.score.toFixed(2)}`, X + 6, Y - Math.max(c.l, c.w)*sc/2 - 3); }
+    }
+    ctx.fillStyle = ink; ctx.beginPath(); ctx.moveTo(cx+7, cy); ctx.lineTo(cx-5, cy-5); ctx.lineTo(cx-5, cy+5); ctx.closePath(); ctx.fill();
+    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--muted');
+    const nk = CANDS.filter(c => c.keep).length;
+    const msg = ['', `후보 칸 ${CANDS.length}개`, `후보 박스 ${CANDS.length}개 (겹침 많음)`, `NMS: ${CANDS.length - nk}개 제거`, `최종 ${nk}개`, `최종 ${nk}개`, `최종 ${nk}개`][k] || '';
+    ctx.fillText(msg, 12, 20);
+  }
+  return {
+    step(k){ cancelAnimationFrame(raf); t0 = performance.now(); draw(k, t0); },
+    leave(){ cancelAnimationFrame(raf); }
+  };
+})();
+
+/* ============================================================
+   S19 tracking
+   ============================================================ */
+hooks.s19 = {
+  init(){
+    const svg = $('#s19svg');
+    S('rect', {x:0, y:0, width:720, height:300, rx:5, class:'f-bg s-line'}, svg);
+    const prev = [[140,110,'#3'],[330,200,'#7'],[520,90,'#9']];
+    const curr = [[205,118,[65,8]],[345,160,[15,40]],[600,100,[80,10]],[610,235,[0,0]]];
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    prev.forEach(([x,y,id]) => { S('circle', {cx:x, cy:y, r:11, class:'f-none s-violet', 'stroke-width':2.5}, g1); S('text', {x:x, y:y-18, 'text-anchor':'middle', class:'mono violet', style:'font-size:11.5px'}, g1, id); });
+    curr.forEach(([x,y]) => S('circle', {cx:x, cy:y, r:9, class:'f-heat'}, g1));
+    S('text', {x:14, y:24, class:'violet', style:'font-size:12px'}, g1, '○ 이전 프레임 t−1 (ID 있음)');
+    S('text', {x:220, y:24, class:'heat', style:'font-size:12px'}, g1, '● 현재 프레임 t (ID 없음)');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    curr.forEach(([x,y,v]) => {
+      if (!v[0] && !v[1]) return;
+      S('path', {d:`M${x} ${y}L${x - v[0]} ${y + v[1]}`, class:'s-heat', 'stroke-width':1.8, 'stroke-dasharray':'5 4', 'marker-end':'url(#ah-heat)'}, g2);
+      S('circle', {cx:x - v[0], cy:y + v[1], r:6, class:'f-none s-heat', 'stroke-width':2}, g2);
+    });
+    S('text', {x:14, y:286, class:'heat', style:'font-size:12px'}, g2, "--→  p' = p − v·Δt  (속도로 되돌린 위치)");
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const match = [[0,0],[1,1],[2,2]];
+    match.forEach(([ci,pi]) => { const [x,y] = curr[ci]; S('text', {x:x + 14, y:y + 5, class:'mono heat', style:'font-size:12px;font-weight:600'}, g3, prev[pi][2]); });
+    S('text', {x:curr[3][0] + 14, y:curr[3][1] + 5, class:'mono rose', style:'font-size:12px;font-weight:600'}, g3, '새 ID #12');
+    S('text', {x:420, y:286, style:'font-size:12px'}, g3, '가장 가까운 것끼리 연결 → ID 이어받기');
+    // two-stage inset
+    const g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    S('rect', {x:0, y:318, width:720, height:162, rx:5, class:'f-bg s-line'}, g4);
+    S('text', {x:14, y:342, style:'font-weight:700'}, g4, '원 논문 2단계: 5개 점의 특징으로 다시 다듬기');
+    const bg = S('g', {transform:'translate(120 405) rotate(-20)'}, g4);
+    S('rect', {x:-70, y:-28, width:140, height:56, rx:4, class:'f-teal-s s-teal', 'stroke-width':1.5}, bg);
+    [[0,0],[70,0],[-70,0],[0,28],[0,-28]].forEach(([x,y]) => S('circle', {cx:x, cy:y, r:6, class:'f-heat'}, bg));
+    S('path', {d:'M230 405H300', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g4);
+    S('rect', {x:302, y:380, width:160, height:50, rx:4, class:'f-violet-s s-violet'}, g4);
+    S('text', {x:382, y:402, 'text-anchor':'middle', class:'mono', style:'font-size:11.5px'}, g4, '5 × 특징 이어붙이기');
+    S('text', {x:382, y:419, 'text-anchor':'middle', class:'mono', style:'font-size:11.5px'}, g4, '→ MLP');
+    S('path', {d:'M462 405H530', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g4);
+    S('text', {x:536, y:398, style:'font-size:12.5px'}, g4, '점수(IoU) 재평가');
+    S('text', {x:536, y:418, style:'font-size:12.5px'}, g4, '박스 미세 보정');
+    S('text', {x:14, y:468, class:'mut', style:'font-size:11.5px'}, g4, '중심 + 네 면의 중앙 = 물체 가장자리까지 보는 5개 지점');
+  }
+};
+
+/* ============================================================
+   S20 deploy concept
+   ============================================================ */
+hooks.s20 = {
+  init(){
+    const svg = $('#s20svg');
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    S('rect', {x:0, y:10, width:150, height:70, rx:4, class:'f-bg s-line'}, g1);
+    S('text', {x:75, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g1, 'PyTorch');
+    S('text', {x:75, y:60, 'text-anchor':'middle', class:'mono mut', style:'font-size:11px'}, g1, '학습용 · 3 FPS (A30)');
+    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
+    S('path', {d:'M150 45H216', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:218, y:10, width:150, height:70, rx:4, class:'f-violet-s s-violet'}, g2);
+    S('text', {x:293, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g2, 'ONNX');
+    S('text', {x:293, y:60, 'text-anchor':'middle', class:'mono', style:'font-size:11px'}, g2, '계산 그래프 파일');
+    S('path', {d:'M368 45H434', class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g2);
+    S('rect', {x:436, y:10, width:160, height:70, rx:4, class:'f-heat-s s-heat'}, g2);
+    S('text', {x:516, y:38, 'text-anchor':'middle', style:'font-weight:700'}, g2, 'TensorRT 엔진');
+    S('text', {x:516, y:60, 'text-anchor':'middle', class:'mono', style:'font-size:11px'}, g2, 'Orin 전용 · 최적화됨');
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    S('text', {x:0, y:122, style:'font-weight:700'}, g3, '층 합치기');
+    [['Conv',0],['BN',80],['ReLU',160]].forEach(([t,x]) => { S('rect', {x, y:136, width:66, height:34, rx:4, class:'f-bg s-line'}, g3); S('text', {x:x+33, y:158, 'text-anchor':'middle', style:'font-size:12px'}, g3, t); });
+    S('path', {d:'M66 153H78M146 153H158', class:'s-ink', 'marker-end':'url(#ah-ink)'}, g3);
+    S('text', {x:0, y:194, class:'mut', style:'font-size:11.5px'}, g3, 'GPU 커널 3번, 메모리 왕복 3번');
+    S('path', {d:'M236 153H300', class:'s-heat', 'stroke-width':2, 'marker-end':'url(#ah-heat)'}, g3);
+    S('rect', {x:302, y:136, width:170, height:34, rx:4, class:'f-heat-s s-heat'}, g3);
+    S('text', {x:387, y:158, 'text-anchor':'middle', style:'font-size:12px;font-weight:600'}, g3, 'Conv (BN·ReLU 포함)');
+    S('text', {x:302, y:194, class:'heat', style:'font-size:11.5px'}, g3, '커널 1번, 메모리 왕복 1번');
+    const tb = $('#s20bits');
+    const rowsB = [['FP32', [[1,'부호','var(--rose)'],[8,'지수','var(--violet)'],[23,'가수','var(--teal)']], '4 B'], ['FP16', [[1,'','var(--rose)'],[5,'','var(--violet)'],[10,'','var(--teal)']], '2 B'], ['INT8', [[8,'정수 × 스케일','var(--heat)']], '1 B']];
+    tb.innerHTML = '<thead><tr><th>형식</th><th>비트 구성 (32비트 폭 기준)</th><th class="n">크기</th></tr></thead><tbody>' + rowsB.map(([n, parts, sz]) =>
+      `<tr><td class="m">${n}</td><td><div style="display:flex;width:100%;height:18px;gap:1px">${parts.map(([b,l,c]) => `<div title="${l}" style="width:${b/32*100}%;background:${c};opacity:.8;border-radius:2px;font-size:10px;color:var(--panel);padding-left:3px;overflow:hidden;white-space:nowrap">${b}${l ? ' ' + l : ''}</div>`).join('')}</div></td><td class="n">${sz}</td></tr>`).join('') + '</tbody>';
+  }
+};
+
+/* ============================================================
+   S21 deploy practice
+   ============================================================ */
+hooks.s21 = {
+  init(){
+    const svg = $('#s21svg');
+    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
+    const B = [
+      ['CPU', '.bin 읽기', '[N,5] fp32', 'f-panel2', 'mut'],
+      ['CUDA 커널', '복셀화', '[V,5] fp16', 'f-teal-s', 'teal'],
+      ['libspconv', '3D Sparse 백본', '[256,180²] fp16', 'f-violet-s', 'violet'],
+      ['TensorRT', 'Neck + Head', '36 출력 fp16', 'f-heat-s', 'heat'],
+      ['CUDA + CPU', '디코드·정렬·NMS', '[K, 11]', 'f-teal-s', 'teal']
+    ];
+    B.forEach(([who, what, out, f, tc], i) => {
+      const x = i*164;
+      S('rect', {x, y:20, width:146, height:92, rx:5, class:f}, g1);
+      S('text', {x:x+10, y:42, class:tc, style:'font-weight:700;font-size:12.5px'}, g1, who);
+      S('text', {x:x+10, y:66, style:'font-size:13px'}, g1, what);
+      S('text', {x:x+10, y:98, class:'mono', style:'font-size:11px'}, g1, out);
+      if (i < 4) S('path', {d:`M${x+147} 66H${x+162}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, g1);
+    });
+    S('text', {x:0, y:136, class:'mut', style:'font-size:11.5px'}, g1, '모델 파일: centerpoint.scn.onnx (libspconv가 로드) · rpn_centerhead_sim.onnx → trtexec --fp16 로 엔진 빌드');
+    // latency bars
+    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
+    const x0 = 90, pxms = 700/40;
+    S('text', {x:0, y:176, style:'font-weight:700'}, g3, 'Orin 지연 (ms)');
+    const segs = [[1.36,'f-teal','복셀화'],[22.3,'f-violet','3D 백본'],[11.3,'f-heat','Neck+Head'],[4.4,'f-teal','디코드+NMS']];
+    const bar = (y, arr, label) => {
+      S('text', {x:0, y:y+17, class:'mono', style:'font-size:11.5px'}, g3, label);
+      let x = x0;
+      arr.forEach(([v,c]) => { S('rect', {x, y, width:v*pxms - 1, height:24, class:c, opacity:.85}, g3); x += v*pxms; });
+      S('text', {x:x+6, y:y+17, class:'mono', style:'font-size:11.5px'}, g3, arr.reduce((a,b) => a + b[0], 0).toFixed(1));
+    };
+    bar(190, segs, 'FP16');
+    bar(224, [[1.36,'f-teal'],[22.3,'f-violet'],[7.0,'f-heat'],[4.4,'f-teal']], 'INT8 헤드');
+    let lx = x0;
+    segs.forEach(([v,c,l]) => { if (v > 3) S('text', {x:lx + v*pxms/2, y:272, 'text-anchor':'middle', style:'font-size:11.5px'}, g3, `${l} ${v}`); lx += v*pxms; });
+    S('text', {x:x0, y:272, style:'font-size:11px', class:'teal'}, g3, '');
+    for (let t = 0; t <= 40; t += 10){ S('path', {d:`M${x0 + t*pxms} 256V262`, class:'s-mut'}, g3); S('text', {x:x0 + t*pxms, y:290, 'text-anchor':'middle', class:'mono mut', style:'font-size:10px'}, g3, String(t)); }
+    // memory bars
+    const g4 = S('g', {class:'frag', 'data-s':4}, svg);
+    S('text', {x:0, y:326, style:'font-weight:700'}, g4, '고정 버퍼 (MB, 최대 크기 기준)');
+    const mem = [['점 [300k,5] fp32', 6.0], ['복셀 특징 [160k,5] fp16', 1.6], ['BEV [256,180²] fp16', 16.6], ['Neck 출력 [512,180²]', 33.2], ['Head 출력 70ch', 4.5]];
+    const pxmb = 480/35;
+    mem.forEach(([l, v], i) => {
+      const y = 340 + i*25;
+      S('text', {x:0, y:y+14, style:'font-size:11.5px'}, g4, l);
+      S('rect', {x:200, y, width:v*pxmb, height:17, rx:2, class: v > 30 ? 'f-heat' : 'f-violet', opacity:.8}, g4);
+      S('text', {x:206 + v*pxmb, y:y+13, class:'mono', style:'font-size:11px'}, g4, v.toFixed(1));
+    });
+  }
+};
+
+/* ============================================================
+   boot
+   ============================================================ */
+const start = (() => { const h = (location.hash || '').slice(1); const i = slides.findIndex(s => s.id === h); return i >= 0 ? i : 0; })();
+slides[0].classList.add('active');
+fit();
+go(start, 0);
+})();
+</script>
+</body>
+</html>
