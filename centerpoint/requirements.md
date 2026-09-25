@@ -116,12 +116,16 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **CenterPoint LiDAR 공식 모델*
 
 - 로컬 `index.html` + **claude.ai 비공개 링크**로 게시.
 - GitHub **공개(public)** 저장소 `centerpoint-orin-slides` 에 push. (GitHub Pages는 사용하지 않음)
-- 폴더 구조:
+- 폴더 구조 (모델별 폴더로 분리, 2026-09-25):
   ```
   lidar/
-  ├── README.md          # 프로젝트 소개, 보는 방법
-  ├── requirements.md    # 이 문서
-  └── index.html         # 웹 슬라이드 (단일 파일)
+  ├── README.md              # 저장소 안내 (모델별 폴더 목록)
+  ├── centerpoint/
+  │   ├── README.md          # 프로젝트 소개, 보는 방법, 수정 방법
+  │   ├── requirements.md    # 이 문서
+  │   ├── index.html         # 웹 슬라이드 (단일 파일, 빌드 결과)
+  │   └── src/               # head/body/script 원본 + build.sh
+  └── pointpillars/          # PointPillars 슬라이드 (같은 구조)
   ```
 - 작업 단위(요구사항 확정, 슬라이드 완성 등)마다 커밋한다.
 

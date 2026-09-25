@@ -1,7 +1,7 @@
 # PointPillars (LiDAR 3D 객체 검출) 구조·원리 설명 웹 슬라이드 — 요구사항 정의서
 
 > 상태: **초안 v0** · 작성일: 2026-09-25
-> CenterPoint 요구사항 정의서(`requirements.md`)와 같은 틀·원칙을 따름. 사용자 답변(8장)은 CenterPoint 때의 답을 그대로 준용했고, PointPillars에서 새로 정해야 하는 항목은 **(미확정)** 으로 표시함.
+> CenterPoint 요구사항 정의서(`../centerpoint/requirements.md`)와 같은 틀·원칙을 따름. 사용자 답변(8장)은 CenterPoint 때의 답을 그대로 준용했고, PointPillars에서 새로 정해야 하는 항목은 **(미확정)** 으로 표시함.
 
 ---
 
@@ -122,14 +122,16 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **PointPillars LiDAR 공식 모델
 
 - 로컬 HTML + **claude.ai 비공개 링크**로 게시.
 - GitHub **공개(public)** 저장소 `pointpillars-orin-slides` (추천안) 에 push. (GitHub Pages는 사용하지 않음)
-- 폴더 구조 (추천안):
+- 폴더 구조 (모델별 폴더로 분리, CenterPoint와 같은 구성):
   ```
   lidar/
-  ├── README.md                    # 프로젝트 소개, 보는 방법
-  ├── requirements.md              # CenterPoint 요구사항
-  ├── requirements-pointpillars.md # 이 문서
-  ├── index.html                   # CenterPoint 웹 슬라이드
-  └── pointpillars.html            # PointPillars 웹 슬라이드 (단일 파일)
+  ├── README.md              # 저장소 안내 (모델별 폴더 목록)
+  ├── centerpoint/           # CenterPoint 슬라이드
+  └── pointpillars/
+      ├── README.md          # 프로젝트 소개, 보는 방법, 수정 방법
+      ├── requirements.md    # 이 문서
+      ├── index.html         # 웹 슬라이드 (단일 파일, 빌드 결과)
+      └── src/               # head/body/script 원본 + build.sh
   ```
 - 작업 단위(요구사항 확정, 슬라이드 완성 등)마다 커밋한다.
 
