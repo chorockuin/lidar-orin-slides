@@ -1,7 +1,7 @@
 # PointPillars (LiDAR 3D 객체 검출) 구조·원리 설명 웹 슬라이드 — 요구사항 정의서
 
 > 상태: **초안 v0** · 작성일: 2026-09-25
-> CenterPoint 요구사항 정의서(`../centerpoint/requirements.md`)와 같은 틀·원칙을 따름. 사용자 답변(8장)은 CenterPoint 때의 답을 그대로 준용했고, PointPillars에서 새로 정해야 하는 항목은 **(미확정)** 으로 표시함.
+> CenterPoint 요구사항 정의서(`../centerpoint/requirements.md`)와 같은 틀·원칙을 따름. 사용자 답변(8장)은 CenterPoint 때의 답을 그대로 준용했고, PointPillars에서 새로 정해야 했던 저장소 방식(Q7)은 확정됨.
 
 ---
 
@@ -118,10 +118,10 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **PointPillars LiDAR 공식 모델
 - 용어는 처음 등장 시 한 줄 정의.
 - 언어: **한국어** (기술 용어는 영어 병기).
 
-## 7. 결과물 · 버전 관리 **(미확정)**
+## 7. 결과물 · 버전 관리
 
 - 로컬 HTML + **claude.ai 비공개 링크**로 게시.
-- GitHub **공개(public)** 저장소 `pointpillars-orin-slides` (추천안) 에 push. (GitHub Pages는 사용하지 않음)
+- GitHub **공개(public)** 저장소 `lidar-orin-slides` 에 CenterPoint와 함께 push. (GitHub Pages는 사용하지 않음)
 - 폴더 구조 (모델별 폴더로 분리, CenterPoint와 같은 구성):
   ```
   lidar/
@@ -145,5 +145,5 @@ NVIDIA Jetson **AGX Orin**에서 동작하는 **PointPillars LiDAR 공식 모델
 | Q4 배포 깊이 | 개념은 쉽게 충분히 + 실무 수준까지 (준용) |
 | Q5 결과물 | 로컬 HTML + claude.ai 비공개 링크 (준용) |
 | Q6 분량/용도 | 20장 내외, 자습 후 발표 (준용) → 22장 |
-| Q7 GitHub | **미확정** — 별도 저장소 `pointpillars-orin-slides` vs 기존 저장소에 함께 둘지 |
+| Q7 GitHub | 기존 저장소에 함께 두고, 저장소 이름을 `centerpoint-orin-slides` → `lidar-orin-slides`로 변경 |
 | 추가 피드백 | 구현 설명보다 **원리와 "왜 그렇게 동작하는지" 개념 설명이 우선** (준용) → 4.0 원칙 동일 적용 |
