@@ -21,7 +21,7 @@
 
 <!-- ============================ 1. 표지 ============================ -->
 <section class="slide" id="s1" data-stage="" data-title="표지" data-steps="1">
-  <canvas id="cv-title" width="1520" height="1440" aria-label="전방 LiDAR 스캔 애니메이션"></canvas>
+  <div id="v3-s1" class="v3 bare" aria-label="전방 LiDAR 스캔 3D 애니메이션"></div>
   <div class="title-wrap">
     <div class="eyebrow">NVIDIA CUDA-PointPillars · Jetson AGX Orin</div>
     <h1>점 구름을<br>기둥으로 세워<br><em>PointPillars</em></h1>
@@ -37,8 +37,8 @@
     <h3>이 자료를 읽는 법</h3>
     <p>슬라이드마다 <b>핵심 질문 → 직관 → 원리 → 수식과 텐서 모양 → Orin 구현</b> 순서로 진행합니다. 발표할 때는 화면의 그림과 짧은 문장만 쓰고, 자습할 때는 이 노트 패널(N)을 열어 자세한 설명을 읽으세요.</p>
     <p>기준 모델은 NVIDIA <code>CUDA-PointPillars</code>(main <code>ce7e2bd</code>)입니다. 원본은 Lang et al., <i>PointPillars: Fast Encoders for Object Detection from Point Clouds</i> (CVPR 2019)이고, 체크포인트는 OpenPCDet의 KITTI 3클래스 설정(<code>pointpillar.yaml</code>)으로 학습한 <code>pointpillar_7728.pth</code>입니다. 모든 수치는 공식 저장소의 설정 파일, 소스, ONNX 그래프에서 확인했습니다.</p>
-    <p>CenterPoint 슬라이드를 먼저 봤다면, 두 모델이 갈라지는 지점 두 곳을 눈여겨보세요. <b>① 3D를 다루는 방법</b>(sparse 3D 합성곱 vs 기둥 + 2D 합성곱), <b>② 물체를 찾는 방법</b>(중심점 vs anchor). 19장에서 나란히 비교합니다.</p>
-    <p>오른쪽 그림은 실제 데이터가 아니라 설명용 가상 장면입니다. 왼쪽 끝이 자차(LiDAR), 부채꼴이 KITTI가 쓰는 카메라 시야 영역입니다.</p>
+    <p>CenterPoint 슬라이드를 먼저 봤다면, 두 모델이 갈라지는 지점 두 곳을 눈여겨보세요. <b>① 3D를 다루는 방법</b>(sparse 3D 합성곱 vs 기둥 + 2D 합성곱), <b>② 물체를 찾는 방법</b>(중심점 vs anchor). 20장에서 나란히 비교합니다.</p>
+    <p>오른쪽 그림은 실제 데이터가 아니라 설명용 가상 장면입니다. 가운데 원뿔이 자차(LiDAR), 회전하는 밝은 선이 레이저가 한 바퀴 도는 모습, 바닥의 부채꼴이 KITTI가 쓰는 카메라 시야 영역입니다.</p>
   </div>
 </section>
 
@@ -47,7 +47,7 @@
   <header><span class="eyebrow">01 · 문제와 입력</span><h2>점 구름에서 "물체"를 찾는다는 것</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s2" width="1400" height="1100" aria-label="위에서 본 가상 KITTI 포인트 클라우드"></canvas>
+      <div class="v3" id="v3-s2" aria-label="가상 KITTI 포인트 클라우드 3D 보기"></div>
       <div class="legend"><span><i style="background:#3b6fd0"></i>낮은 점</span><span><i style="background:#2bb3a8"></i>중간</span><span><i style="background:#f0a040"></i>높은 점</span><span class="frag" data-s="1"><i style="border:1.5px dashed currentColor;background:none"></i>관심 영역 (카메라 시야)</span><span class="frag" data-s="3"><i style="border:1.5px solid currentColor;background:none"></i>정답 박스</span></div>
     </div>
     <div class="txt">
@@ -72,6 +72,7 @@
     <p><b>관심 영역</b>은 x ∈ [0, 69.12] m(앞), y ∈ [−39.68, 39.68] m(좌우), z ∈ [−3, 1] m(센서 기준 높이)입니다. 이상한 숫자처럼 보이지만 이유가 있습니다. 69.12 = 432 × 0.16, 79.36 = 496 × 0.16으로, 칸 크기 0.16 m로 나누어떨어지고, 432와 496은 뒤의 2D 백본이 해상도를 8배까지 줄여도 정수(54, 62)가 되도록 고른 값입니다.</p>
     <p><b>입력 채널</b>은 x, y, z, intensity(반사 강도) 4개입니다. CenterPoint(nuScenes)와 달리 여러 sweep을 겹치지 않고 시간 채널 Δt가 없습니다. 한 장의 스캔에서는 물체가 얼마나 빨리 움직이는지 알 수 없으므로 <b>속도를 예측하지 않습니다</b>.</p>
     <p><b>클래스</b>는 Car, Pedestrian, Cyclist 3종입니다. KITTI 평가는 난이도(Easy/Moderate/Hard)별 3D AP를 쓰며, 이 자료의 정확도 수치는 Moderate 기준입니다.</p>
+    <p>왼쪽 3D 그림은 가상 장면입니다. 드래그로 돌려 보면 부채꼴 밖(뒤쪽·옆쪽)의 점이 흐려지고, 주황 테두리 상자가 관심 영역(x 0~69.12 m, y ±39.68 m, z −3~1 m)입니다.</p>
     <p><b>출력 9개 값</b>은 CUDA-PointPillars 기준으로 <code>x, y, z, dx, dy, dz, yaw, class id, score</code> 순서입니다. 소스의 구조체 필드명은 <code>w, l, h</code>이지만 실제로 들어가는 값은 (dx 길이, dy 폭, dz 높이) 순서라서, 필드명만 보고 쓰면 길이와 폭이 뒤바뀌니 주의하세요.</p>
   </div>
 </section>
@@ -81,7 +82,8 @@
   <header><span class="eyebrow">02 · 핵심 아이디어</span><h2>높이를 쪼개지 말고 "기둥"으로 세운다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s3svg" viewBox="0 0 700 460" role="img" aria-label="복셀 방식과 기둥 방식 비교"></svg>
+      <div class="v3" id="v3-s3" aria-label="복셀 방식과 기둥 방식 3D 비교"></div>
+      <div class="legend"><span><i style="background:var(--violet)"></i>복셀 (가로·세로·높이 모두 나눔)</span><span><i style="background:var(--teal)"></i>기둥 (높이는 한 칸)</span></div>
     </div>
     <div class="txt">
       <p class="q">3D 합성곱은 느리다. 점 구름을 그냥 "2D 이미지"처럼 다룰 수는 없을까?</p>
@@ -101,6 +103,7 @@
     <p>PointPillars(2019)는 한 걸음 더 나갔습니다. <b>높이 방향으로는 격자를 나누지 않고</b>, 바닥 칸 하나(0.16 m × 0.16 m) 위의 점을 z 범위 전체(4 m)에 걸쳐 한 기둥으로 묶습니다. 기둥 안의 점들은 PointNet 방식의 작은 신경망으로 64차원 벡터 하나가 되고, 이 벡터를 원래 자리에 꽂으면 <b>채널 64개짜리 2D 이미지(pseudo-image)</b>가 됩니다.</p>
     <p>이후는 이미지 검출기(SSD 계열)와 같습니다. 2D 합성곱만 쓰므로 TensorRT 같은 표준 추론 엔진이 잘 최적화하고, 특수한 sparse 연산 라이브러리가 필요 없습니다. 원 논문은 62 Hz(GTX 1080Ti)를 보고했습니다.</p>
     <p><b>연산량 비교 (예시값).</b> 같은 영역을 0.16 × 0.16 × 0.1 m 복셀(높이 40칸)로 나눠 64→64 채널 3×3×3 <b>dense</b> 3D 합성곱을 한 층만 해도 약 1,900 GFLOP입니다. PointPillars는 PFN부터 Head까지 네트워크 전체가 약 69 GFLOP입니다(ONNX 그래프의 층 모양으로 계산). 실제 3D 검출기는 sparse conv로 빈칸을 건너뛰어 이 차이를 많이 줄이지만, 그래도 "전부 2D"라는 단순함은 배포에서 큰 장점입니다.</p>
+    <p>왼쪽 3D 그림은 같은 차와 보행자를 두 방식으로 담은 개념도입니다(칸 크기 0.4 m로 과장). 복셀은 표면을 따라 여러 층으로 쌓이고, 기둥은 바닥 칸마다 높이 전체를 한 칸으로 묶습니다.</p>
     <p><b>대가.</b> 높이 정보는 기둥 안 점들의 z 좌표와 그 차이값(뒤의 10채널 특징)으로만 전달됩니다. 원 논문과 이후 연구들은 보행자·자전거처럼 작은 물체에서 복셀 기반 모델보다 약한 경향을 보고합니다.</p>
   </div>
 </section>
@@ -135,12 +138,53 @@
   </div>
 </section>
 
-<!-- ============================ 5. Pillar화 ① ============================ -->
+<!-- ============================ 5. 한눈에 보기 (3D 시퀀스) ============================ -->
+<section class="slide" id="seq" data-stage="" data-title="한눈에 보기: 3D로 따라가기" data-steps="8">
+  <header><span class="eyebrow">03 · 한눈에 보기</span><h2>한 장면으로 따라가는 PointPillars 전체</h2></header>
+  <div class="cols wide">
+    <div class="vis">
+      <div class="btnrow" aria-hidden="true" style="pointer-events:none"><span class="chip heat" id="seqcap"></span></div>
+      <div class="v3" id="v3-seq" aria-label="PointPillars 전체 과정 3D 시퀀스"></div>
+    </div>
+    <div class="txt">
+      <p class="q">점 구름 한 장이 박스 목록이 되기까지, 같은 장면 위에서 무슨 일이 일어나나?</p>
+      <ol class="seq" id="seqlist">
+        <li><span>1</span><div><b>점 구름</b> <code>[N, 4]</code><small>카메라 시야 안의 점만 쓴다. 순서도 격자도 없다.</small></div></li>
+        <li><span>2</span><div><b>Pillar화</b> <code>[P, 32, 10]</code><small>바닥만 0.16 m 칸으로 나누고, 칸마다 높이 전체를 기둥 하나에 담는다. (그림은 0.64 m 칸)</small></div></li>
+        <li><span>3</span><div><b>PFN</b> <code>[P, 64]</code><small>기둥 안 점들을 공유 선형층 + max로 요약한다. 기둥 하나 = 벡터 하나, 높이 정보는 벡터 속에 녹아든다.</small></div></li>
+        <li><span>4</span><div><b>Scatter</b> <code>[64, 496, 432]</code><small>벡터를 제자리에 꽂으면 채널 64장짜리 "가짜 이미지"가 된다.</small></div></li>
+        <li><span>5</span><div><b>2D 백본</b> <code>1/2 · 1/4 · 1/8</code><small>해상도를 줄이며 채널을 64 → 128 → 256으로 늘린다. 점점 넓게 본다.</small></div></li>
+        <li><span>6</span><div><b>Neck</b> <code>[384, 248, 216]</code><small>세 해상도를 같은 크기로 올려 이어 붙인다. 작은 물체와 큰 물체를 한 지도에서.</small></div></li>
+        <li><span>7</span><div><b>Anchor Head</b> <code>18 / 42 / 12 ch</code><small>칸마다 anchor 6개가 답한다: 무엇인가, 얼마나 어긋났나, 앞뒤는 어느 쪽인가.</small></div></li>
+        <li><span>8</span><div><b>디코드 + NMS</b> <code>[K, 9]</code><small>점수 0.1 이상인 anchor를 박스로 복원하고 겹치는 박스를 지운다.</small></div></li>
+      </ol>
+      <p class="idea">3D를 다루는 건 앞의 세 단계뿐이다. 가짜 이미지가 생기는 순간부터는 평범한 2D 이미지 검출기와 같다.</p>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>이 장의 사용법</h3>
+    <p>클릭할 때마다 파이프라인이 한 단계씩 진행됩니다. 모든 단계가 <b>같은 가상 장면</b> 위에서 일어나므로, 점이 기둥이 되고, 기둥이 벡터가 되고, 벡터가 이미지가 되는 변화를 끊김 없이 볼 수 있습니다. 드래그로 돌려 보고, R 키로 시점을 되돌립니다.</p>
+    <ol>
+      <li><b>점 구름</b>: 부채꼴(카메라 시야) 밖의 점은 흐리게, 안의 점만 쓴다 → 2장.</li>
+      <li><b>Pillar화</b>: 점이 든 바닥 칸마다 기둥이 선다. 기둥 높이는 그 칸에서 가장 높은 점까지로 그렸다 → 6·7장.</li>
+      <li><b>PFN</b>: 기둥이 납작해져 "벡터 하나"가 된다 → 8·9장.</li>
+      <li><b>Scatter</b>: 벡터들이 바닥 격자에 꽂혀 한 장의 판(이미지)이 된다. 판 윗면의 무늬 = 점이 있던 자리 → 10장.</li>
+      <li><b>2D 백본</b>: 위로 올라갈수록 판은 작아지고(해상도 ↓) 두꺼워진다(채널 ↑) → 11장.</li>
+      <li><b>Neck</b>: 세 판을 같은 크기로 올려 겹친 두꺼운 판 → 12장.</li>
+      <li><b>Anchor Head</b>: 물체가 있는 칸의 anchor 6개(차·보행자·자전거 × 0°/90°)와, 빈 곳에 깔린 anchor 일부(회색)를 그렸다. 실제로는 321,408개 전부가 답한다 → 13~16장.</li>
+      <li><b>디코드 + NMS</b>: 살아남은 박스와 점수 → 19장.</li>
+    </ol>
+    <p>판의 크기·두께·칸 크기는 보기 좋게 조정한 개념도입니다. 정확한 텐서 모양은 오른쪽 목록과 각 장을 기준으로 하세요.</p>
+  </div>
+</section>
+
+<!-- ============================ 6. Pillar화 ① ============================ -->
 <section class="slide" id="s5" data-stage="pillar" data-title="Pillar화 ① 기둥에 담기" data-steps="6">
   <header><span class="eyebrow">04 · Pillar화</span><h2>바닥에만 모눈을 긋고, 높이는 통째로</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s5svg" viewBox="0 0 660 470" role="img" aria-label="바닥 격자 확대도와 기둥 옆모습"></svg>
+      <div class="v3" id="v3-s5" aria-label="점이 바닥 격자의 기둥에 담기는 3D 보기"></div>
+      <div class="legend"><span><i style="background:var(--rose)"></i>예시 점 p</span><span><i style="background:var(--teal)"></i>다른 점 / 점이 든 기둥</span><span><i style="background:var(--heat)"></i>기둥 (77, 268)</span></div>
     </div>
     <div class="txt">
       <p class="q">점을 격자에 담아야 CNN을 쓸 수 있다. 그런데 왜 높이 방향은 나누지 않나?</p>
@@ -164,16 +208,18 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
     <p>점 좌표 x, y를 칸 크기로 나누고 내림(floor)하면 그 점이 속한 기둥 번호가 나옵니다. 관심 영역 밖의 점(예: 뒤쪽, 70 m 밖, 높이 −3 m 아래나 1 m 위)은 버립니다. 높이 방향 칸 크기가 z 범위 전체(1 − (−3) = 4 m)와 같아서 z 번호는 항상 0입니다.</p>
     <p><b>격자 크기:</b> 69.12 / 0.16 = 432, 79.36 / 0.16 = 496, 전체 432 × 496 = <b>214,272칸</b>. CenterPoint의 3D 격자(8천만 칸 이상)와 비교하면 400분의 1 수준입니다.</p>
     <p><b>기둥 중심.</b> 기둥 (77, 268)의 기하 중심은 x = 0.08 + 77 × 0.16 = 12.40 m, y = −39.68 + 0.08 + 268 × 0.16 = 3.28 m, z = −3 + 2 = −1.0 m입니다. 다음 장에서 이 중심과의 차이를 특징으로 씁니다.</p>
+    <p>왼쪽 3D 그림은 칸 7 × 5개를 확대한 개념도입니다. 가로·세로는 칸 번호 단위, 높이는 4 m를 1/5로 줄여 그렸습니다(실제 기둥은 폭 0.16 m에 높이 4 m로 훨씬 가늘고 깁니다). 중요한 것은 격자선이 <b>바닥에만</b> 있고 높이 방향에는 없다는 점입니다.</p>
     <p><b>Orin 구현.</b> <code>lidar-voxelization.cu</code>의 첫 커널 <code>generateVoxels_random_kernel</code>이 이 계산을 합니다. 칸마다 카운터 배열(<code>mask</code>, 214,272개)이 있고, 점은 <code>atomicAdd(&amp;mask[칸], 1)</code>이 돌려준 순번을 자기 자리로 씁니다. 순번이 32 이상이면 버립니다.</p>
     <p>이때 GPU가 점을 처리하는 순서는 매번 다를 수 있어서, 점이 32개를 넘는 기둥에서는 <b>어떤 점이 살아남을지가 실행마다 달라집니다</b>. README도 "복셀화 결과가 무작위"라고 밝힙니다. 기둥 하나에 32개가 넘게 찍히는 곳은 가까운 물체 표면 정도라 정확도 영향은 작습니다.</p>
   </div>
 </section>
 
-<!-- ============================ 6. Pillar화 ② ============================ -->
+<!-- ============================ 7. Pillar화 ② ============================ -->
 <section class="slide" id="s6" data-stage="pillar" data-title="Pillar화 ② 10채널로 늘리기" data-steps="7">
   <header><span class="eyebrow">04 · Pillar화</span><h2>점마다 "기둥 안에서의 위치"를 덧붙인다</h2></header>
   <div class="cols">
     <div class="vis">
+      <div class="v3" id="v3-s6" style="flex:none;height:190px" aria-label="기둥 하나 안의 점, 평균, 기둥 중심"></div>
       <div class="box">
         <p class="small muted" style="margin:0 0 6px">기둥 (77, 268)에 들어간 점 4개 + 빈자리 28개 · 기둥 중심 (12.40, 3.28, −1.00)</p>
         <div style="overflow-x:auto">
@@ -197,6 +243,7 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
     </div>
     <div class="txt">
       <p class="q">점 하나의 x, y, z, r만으로는 부족하다. 신경망에 무엇을 더 알려줘야 기둥 안의 "모양"이 보일까?</p>
+      <p class="idea">사람의 체형을 말할 때 "해발 몇 m에 서 있나"보다 "반 평균보다 몇 cm 큰가"가 더 많은 걸 알려 준다. 절대 위치에 "기준과의 차이"를 덧붙인다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>원래 4개</b> (x, y, z, r): 점이 세상 어디에 있는지. 같은 차라도 10 m 앞과 50 m 앞에서 값이 전혀 다르다.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>+ 평균과의 차 3개</b> (x_c, y_c, z_c): 기둥 안 점들의 무게중심에서 얼마나 떨어졌나. 기둥 안의 <b>상대적 모양</b>(위로 길쭉한지, 한쪽에 몰렸는지)이 드러난다.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>+ 기둥 중심과의 차 3개</b> (x_p, y_p, z_p): 칸의 정가운데에서 얼마나 벗어났나. 칸보다 <b>정밀한 위치</b>를 알려준다. z_p는 기둥 높이 중앙(−1 m)에서 잰 높이다.</p></div>
@@ -214,14 +261,14 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
       <li>평균 x = (12.34 + 12.41 + 12.37 + 12.45) / 4 = 12.3925, 평균 z = (−0.87 − 0.42 − 1.35 − 0.36) / 4 = −0.75</li>
       <li>점 1: x_c = 12.34 − 12.3925 = −0.05, z_c = −0.87 − (−0.75) = −0.12, x_p = 12.34 − 12.40 = −0.06, z_p = −0.87 − (−1.00) = 0.13</li>
     </ul>
-    <p>z_c와 z_p를 보면 점 3은 기둥 안에서 아래쪽(범퍼 높이), 점 2와 4는 위쪽(창문 높이)에 있다는 것이 절대 좌표 없이도 드러납니다.</p>
+    <p>z_c와 z_p를 보면 점 3은 기둥 안에서 아래쪽(범퍼 높이), 점 2와 4는 위쪽(창문 높이)에 있다는 것이 절대 좌표 없이도 드러납니다. 위쪽 3D 그림의 주황 화살표(평균 → 점)가 x_c, y_c, z_c, 보라 화살표(기둥 중심 → 점)가 x_p, y_p, z_p입니다(가로 15배, 높이 1.5배로 늘려 그림).</p>
     <p><b>32개 상한과 0 채우기.</b> ONNX 모델 입력은 <code>voxels [10000, 32, 10]</code>, <code>voxel_idxs [10000, 4]</code>(b, z, y, x), <code>voxel_num [1]</code>(실제 기둥 수)입니다. 런타임 복셀화 버퍼는 40,000개까지 잡혀 있지만 엔진 입력은 10,000개입니다. 빈 자리의 10개 값은 모두 0입니다. 원 논문은 기둥 수 12,000개, 기둥당 100점을 썼는데, KITTI 앞쪽 영역에서는 32점, 1만 기둥이면 거의 넘치지 않습니다.</p>
     <p><b>희소성 수치는 예시값</b>입니다. 기둥 수는 장면에 따라 수천~1만 개 정도로 달라집니다. CenterPoint의 3D 복셀(0.13%)보다 채워진 비율이 훨씬 높은데, 칸이 크고 높이 방향이 한 칸이기 때문입니다.</p>
     <p><b>Orin 구현.</b> <code>generateBaseFeatures_kernel</code>이 빈칸이 아닌 칸마다 <code>atomicAdd(pillar_num)</code>으로 기둥 번호를 받고 좌표 (0, 0, iy, ix)를 기록합니다. <code>generateFeatures_kernel</code>은 한 블록에 기둥 4개(warp 4개)를 두고 공유 메모리에서 합계와 평균을 구해 10채널 fp16 값을 씁니다.</p>
   </div>
 </section>
 
-<!-- ============================ 7. PFN ① ============================ -->
+<!-- ============================ 8. PFN ① ============================ -->
 <section class="slide" id="s7" data-stage="pfn" data-title="PFN ① 순서 없는 집합 요약" data-steps="6">
   <header><span class="eyebrow">05 · Pillar Feature Net</span><h2>순서가 없는 점들을 벡터 하나로</h2></header>
   <div class="cols">
@@ -244,11 +291,11 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
     <p>f는 모든 점에 똑같이 적용되는(가중치를 공유하는) 작은 신경망이고, max는 채널별 최댓값입니다. 합(sum)이나 평균도 대칭 함수지만 PointNet과 PointPillars는 max를 씁니다.</p>
     <p><b>max의 장점.</b> ① 점 개수에 둔감합니다. 같은 물체에서 점이 5개 찍히든 30개 찍히든, 특징을 가장 잘 보여 주는 점이 하나 있으면 값이 비슷합니다. ② 채널마다 "가장 강하게 반응한 점"이 달라서, 64개 채널이 서로 다른 점을 대표할 수 있습니다.</p>
     <p><b>CenterPoint와의 차이.</b> CenterPoint는 7.5 cm 복셀 안의 점을 단순 평균(학습 없음)하고, 모양 이해는 뒤의 3D 합성곱에 맡겼습니다. PointPillars는 기둥이 크고(16 cm × 4 m) 뒤에 3D 합성곱이 없으므로, 기둥 안의 구조를 <b>학습된 f</b>로 직접 요약해야 합니다. 그래서 PFN이 "encoder"의 핵심입니다.</p>
-    <p>오른쪽 그림의 f 출력 막대는 설명용으로 만든 값입니다. 실제 f는 다음 장의 선형층 + BN + ReLU입니다.</p>
+    <p>왼쪽 그림의 f 출력 막대는 설명용으로 만든 값입니다. 실제 f는 다음 장의 선형층 + BN + ReLU입니다.</p>
   </div>
 </section>
 
-<!-- ============================ 8. PFN ② ============================ -->
+<!-- ============================ 9. PFN ② ============================ -->
 <section class="slide" id="s8" data-stage="pfn" data-title="PFN ② 행렬 곱 + max" data-steps="7">
   <header><span class="eyebrow">05 · Pillar Feature Net</span><h2>PFN = 행렬 곱 한 번 + max</h2></header>
   <div class="cols wide">
@@ -272,6 +319,7 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
     </div>
     <div class="txt">
       <p class="q">"모든 점에 같은 f"를 GPU에서 빠르게 하려면?</p>
+      <p class="idea">답안지 수만 장을 같은 채점표로 채점한다면, 한 장씩 넘기지 말고 전부 쌓아 한 번에 기계에 넣는 게 빠르다. 모든 점을 한 행렬로 쌓으면 f는 행렬 곱 한 번이다.</p>
       <div class="frag" data-s="1"><p class="pt shape"><b>기둥 P개 × 점 32개를 한 줄로 세우면</b> 행렬 <code>[P·32, 10]</code>. 가중치 <code>W [10, 64]</code>를 한 번 곱하면 모든 점의 f가 한꺼번에 나온다.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>선형층</b>: 행 하나(점 하나) × W = 64개 값. 강조된 칸을 따라가 보자.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>BN + ReLU</b>: 채널마다 크기를 맞추고(BN), 음수는 0으로 자른다(ReLU).</p></div>
@@ -289,16 +337,17 @@ iy = ⌊(3.21 + 39.68) / 0.16⌋ = ⌊268.06⌋ = <span class="hl">268</span></d
     <p><b>왜 bias가 없나?</b> 바로 뒤의 BN이 평균을 빼고 학습된 이동값 β를 더하므로 선형층의 bias는 BN에 흡수됩니다. 쓸모없는 파라미터를 뺀 것입니다.</p>
     <p><b>토이 예제 계산.</b> ch1 = 2 × r − 0.3 에서 점 1: 2 × 0.35 − 0.3 = 0.40, 점 3: 2 × 0.08 − 0.3 = −0.14 → ReLU 0. ch2 = −1.5 × z_c 에서 점 3: −1.5 × (−0.60) = 0.90 이 가장 큽니다. max 결과 [0.64, 0.50, 0.90]은 각각 "가장 높은 점의 높이", "가장 강한 반사", "가장 낮게 튀어나온 점"을 요약한 셈이고, 채널마다 대표 점이 다릅니다(점 4, 점 4, 점 3).</p>
     <p><b>빈자리(패딩) 행.</b> 입력 10개 값이 모두 0이면 선형층 출력도 0입니다. 토이 예제에서는 ch1에 −0.3을 더해 ReLU가 0으로 만들지만, 실제 BN의 상수 항(β − γμ/σ)은 채널마다 다르고 양수일 수도 있습니다. 그러면 32개 중 빈자리가 있는 모든 기둥에 같은 바닥값이 깔립니다. 점 수가 적은 기둥과 많은 기둥의 차이를 신경망이 이 바닥값까지 포함해 학습하므로 문제가 되지 않습니다. OpenPCDet 원본도 빈자리 입력만 0으로 가리고(mask) 같은 방식으로 계산합니다.</p>
-    <p><b>Orin 구현.</b> ONNX 입력 <code>voxels [10000, 32, 10]</code>을 Reshape으로 <code>[320000, 10]</code>으로 펴서 MatMul, BN, ReLU를 하고, 다시 <code>[10000, 32, 64]</code>로 접어 ReduceMax(keepdims = 0)로 <code>[10000, 64]</code>를 만듭니다. TensorRT는 MatMul·BN·ReLU를 한 커널로 합칩니다(20장).</p>
+    <p><b>Orin 구현.</b> ONNX 입력 <code>voxels [10000, 32, 10]</code>을 Reshape으로 <code>[320000, 10]</code>으로 펴서 MatMul, BN, ReLU를 하고, 다시 <code>[10000, 32, 64]</code>로 접어 ReduceMax(keepdims = 0)로 <code>[10000, 64]</code>를 만듭니다. TensorRT는 MatMul·BN·ReLU를 한 커널로 합칩니다(21장).</p>
   </div>
 </section>
 
-<!-- ============================ 9. Scatter ============================ -->
+<!-- ============================ 10. Scatter ============================ -->
 <section class="slide" id="s9" data-stage="scatter" data-title="Scatter: 가짜 이미지" data-steps="6">
   <header><span class="eyebrow">06 · Scatter</span><h2>기둥 벡터를 제자리에 꽂으면 이미지가 된다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s9svg" viewBox="0 0 700 460" role="img" aria-label="기둥 벡터가 격자에 꽂혀 가짜 이미지가 되는 과정"></svg>
+      <div class="v3" id="v3-s9" aria-label="기둥 벡터가 격자에 꽂혀 가짜 이미지가 되는 3D 보기"></div>
+      <div class="legend"><span><i style="background:var(--teal)"></i>기둥 벡터 (64채널 중 8칸만 그림)</span><span><i style="background:var(--panel2);border:1px solid var(--line)"></i>빈 칸 = 0</span></div>
     </div>
     <div class="txt">
       <p class="q">기둥 벡터 P개는 "목록"일 뿐이다. 어떻게 2D CNN이 먹을 수 있는 이미지로 바꾸나?</p>
@@ -319,16 +368,18 @@ for p in 0 … P−1:
     canvas[:, y, x] = pillar_feat[p]      # 64개 값 복사</div>
     <p>OpenPCDet에서는 <code>PointPillarScatter</code>(<code>NUM_BEV_FEATURES: 64</code>)가 이 일을 합니다. 파이썬 인덱싱으로 쓰면 한 줄이지만 ONNX 표준 연산으로 표현하기 까다로워서, CUDA-PointPillars는 graphsurgeon으로 이 부분을 잘라내고 <code>PPScatterPlugin</code> 노드 하나로 바꿨습니다(<code>tool/modify_onnx.py</code>). 플러그인 입력은 PFN 출력 <code>[10000, 64]</code>, 좌표 <code>[10000, 4]</code>, 기둥 수 <code>[1]</code>이고 출력은 <code>[1, 64, 496, 432]</code>입니다.</p>
     <p><b>메모리.</b> 64 × 496 × 432 × 2 B(fp16) ≈ 27.4 MB. 대부분 0이지만, 뒤의 2D 합성곱이 조밀한 입력을 가정하므로 그대로 둡니다. 빈칸을 건너뛰는 sparse conv를 쓰지 않는 대신 표준 커널의 속도를 얻는 선택입니다.</p>
+    <p>왼쪽 3D 그림에서 기둥 벡터는 채널을 세로로 쌓은 막대입니다(64채널을 8칸으로 줄임). 목록일 때는 순서가 의미 없는 "봉투 속 조각"이고, 제자리에 꽂히는 순간 이웃 관계가 생겨 2D 합성곱이 가능해집니다.</p>
     <p><b>좌표 순서.</b> 이미지 텐서는 (채널, 행 y, 열 x) 순서입니다. 496이 y 방향(좌우 79.36 m), 432가 x 방향(앞 69.12 m)입니다.</p>
   </div>
 </section>
 
-<!-- ============================ 10. 2D 백본 ============================ -->
+<!-- ============================ 11. 2D 백본 ============================ -->
 <section class="slide" id="s10" data-stage="backbone" data-title="2D 백본" data-steps="7">
   <header><span class="eyebrow">07 · 2D 백본</span><h2>해상도는 줄이고, 채널은 늘린다</h2></header>
   <div class="cols wide">
     <div class="vis">
-      <svg id="s10svg" viewBox="0 0 760 470" role="img" aria-label="2D 백본 블록별 텐서 크기"></svg>
+      <div class="v3" id="v3-s10" aria-label="2D 백본 블록별 특징 지도 3D 보기"></div>
+      <div class="legend"><span>판의 넓이 = 해상도 · 두께 = 채널 수 · 윗면 무늬 = 점이 있던 자리 (가상 장면)</span></div>
     </div>
     <div class="txt">
       <p class="q">가짜 이미지에서 "여기 차가 있다"를 알아보려면 어떤 CNN이 필요한가?</p>
@@ -355,16 +406,18 @@ for p in 0 … P−1:
     </table>
     <p>GFLOP은 2 × C_in × C_out × 9 × H × W로 계산했습니다(곱셈과 덧셈을 각각 1로 셈). 블록 2, 3은 해상도가 1/4로 줄고 채널 곱이 4배가 되어 연산량이 같습니다.</p>
     <p><b>수용 영역.</b> 블록 3 출력의 한 칸은 입력 가짜 이미지에서 수십 칸, 즉 수 m 이상의 범위를 봅니다. 차(3.9 m) 한 대를 담기에 충분하고, 주변 도로·다른 차와의 관계(맥락)도 봅니다.</p>
+    <p>왼쪽 3D 그림은 가상 장면의 가짜 이미지가 블록을 지나며 변하는 모습입니다. 블록이 깊어질수록 판이 작아지고(해상도 ½) 두꺼워지며(채널 ×2), 윗면 무늬는 뭉툭해집니다. 5단계에서는 블록 3 위에서 3×3 커널 하나가 덮는 땅(주황)과 차 한 대(청록)를 비교합니다.</p>
     <p><b>CenterPoint와 비교.</b> CenterPoint는 3D sparse 백본(22.3 ms)이 3D 모양을 이해한 뒤 BEV로 펼쳤습니다. PointPillars는 3D 단계를 PFN 한 층으로 끝내고, 그 몫까지 이 2D 백본이 맡습니다. 2D 합성곱은 cuDNN·TensorRT에서 가장 잘 최적화된 연산이라 전체가 빠릅니다.</p>
   </div>
 </section>
 
-<!-- ============================ 11. 다중 스케일 결합 ============================ -->
+<!-- ============================ 12. 다중 스케일 결합 ============================ -->
 <section class="slide" id="s11" data-stage="backbone" data-title="다중 스케일 결합" data-steps="6">
   <header><span class="eyebrow">07 · Neck</span><h2>세 가지 시야를 같은 크기로 올려 합친다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s11svg" viewBox="0 0 700 460" role="img" aria-label="세 블록의 업샘플과 이어 붙이기, 전치 합성곱 토이 예제"></svg>
+      <div class="v3" id="v3-s11" aria-label="세 블록을 같은 크기로 올려 이어 붙이는 3D 보기"></div>
+      <svg id="s11svg" viewBox="0 0 700 118" class="frag" data-s="4" style="flex:none" role="img" aria-label="전치 합성곱 토이 예제"></svg>
     </div>
     <div class="txt">
       <p class="q">작은 보행자(0.6 m)와 큰 차(3.9 m)를 한 번에 찾으려면 어느 해상도를 써야 하나?</p>
@@ -387,12 +440,12 @@ for p in 0 … P−1:
   </div>
 </section>
 
-<!-- ============================ 12. Anchor 개념 ============================ -->
+<!-- ============================ 13. Anchor 개념 ============================ -->
 <section class="slide" id="s12" data-stage="head" data-title="Anchor: 미리 깔아 둔 상자" data-steps="6">
   <header><span class="eyebrow">08 · Anchor</span><h2>칸마다 "기준 상자" 6개를 미리 깔아 둔다</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s12" width="1400" height="1100" aria-label="특징 지도 위 anchor 배치 확대도"></canvas>
+      <div class="v3" id="v3-s12" aria-label="정답 차 주변 anchor 배치 3D 보기"></div>
       <div class="legend"><span><i style="background:var(--teal)"></i>차 anchor 3.9 × 1.6</span><span><i style="background:var(--violet)"></i>보행자 0.8 × 0.6</span><span><i style="background:var(--heat)"></i>자전거 1.76 × 0.6</span></div>
     </div>
     <div class="txt">
@@ -421,19 +474,22 @@ for p in 0 … P−1:
     <div class="eq">x_a = 0      + col · 69.12 / (216 − 1)    <span class="c">간격 0.3215 m</span>
 y_a = −39.68 + row · 79.36 / (248 − 1)    <span class="c">간격 0.3213 m</span>
 예) col 38, row 133 → (12.217, 3.052)</div>
-    <p><b>CenterPoint와 비교.</b> CenterPoint 3장에서 본 "anchor 방식"이 바로 이것입니다. 기울어진 물체와 딱 맞는 anchor가 없다는 약점을 PointPillars는 방향 2개 + 각도 회귀 + 방향 분류(15장)로 보완합니다.</p>
+    <p>왼쪽 3D 그림에서 anchor는 설정값 그대로의 높이에 놓았습니다. 보행자·자전거 anchor의 바닥(−0.6 m)은 지면(약 −1.73 m)보다 1 m 넘게 떠 있는데, 이 차이는 회귀(Δz)가 메웁니다.</p>
+    <p><b>CenterPoint와 비교.</b> CenterPoint 3장에서 본 "anchor 방식"이 바로 이것입니다. 기울어진 물체와 딱 맞는 anchor가 없다는 약점을 PointPillars는 방향 2개 + 각도 회귀 + 방향 분류(16장)로 보완합니다.</p>
   </div>
 </section>
 
-<!-- ============================ 13. Head 구조 ============================ -->
+<!-- ============================ 14. Head 구조 ============================ -->
 <section class="slide" id="s13" data-stage="head" data-title="Head: anchor마다 묻는 질문" data-steps="6">
   <header><span class="eyebrow">08 · Head</span><h2>1×1 합성곱 세 갈래가 anchor마다 답한다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s13svg" viewBox="0 0 720 470" role="img" aria-label="Head 세 갈래와 한 칸의 출력 채널 배치"></svg>
+      <div class="v3" id="v3-s13" aria-label="한 칸의 출력 72개를 쌓은 3D 보기"></div>
+      <div class="legend"><span><i style="background:var(--heat)"></i>cls 3</span><span><i style="background:var(--teal)"></i>box 7</span><span><i style="background:var(--violet)"></i>dir 2</span><span>행 = anchor 6개</span></div>
     </div>
     <div class="txt">
       <p class="q">지도의 한 칸이 anchor 6개 각각에 대해 대답해야 하는 질문은 무엇인가?</p>
+      <p class="idea">칸마다 견본 상자 6개가 놓여 있고, 상자마다 세 가지 질문에 답한다. <b>"나는 무엇과 겹치나? 정답이 되려면 얼마나 고쳐야 하나? 앞은 어느 쪽인가?"</b></p>
       <div class="frag" data-s="1"><p class="pt what"><b>cls (18 = 6 × 3)</b>: "이 anchor는 차인가, 보행자인가, 자전거인가?" 클래스마다 독립된 점수(sigmoid).</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>box (42 = 6 × 7)</b>: "정답 박스가 되려면 얼마나 옮기고 늘리고 돌려야 하나?" Δx, Δy, Δz, Δdx, Δdy, Δdz, Δθ.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>dir (12 = 6 × 2)</b>: "앞이 이쪽인가, 반대쪽인가?" 두 값 중 큰 쪽.</p></div>
@@ -450,19 +506,22 @@ box [1, 248, 216, 42] · dir [1, 248, 216, 12]</div>
     <p><b>cls가 6 × 3인 이유.</b> anchor 하나마다 3개 클래스 점수를 모두 냅니다. 차 anchor라도 "보행자" 점수를 갖습니다. 학습 때는 차 anchor가 차 정답에만 매칭되므로 다른 클래스 점수는 0으로 학습되고, 후처리에서는 3개 중 가장 높은 점수의 클래스를 씁니다.</p>
     <p><b>연산량.</b> 2 × 384 × 72 × 248 × 216 ≈ 3.0 GFLOP. 네트워크 전체(약 69 GFLOP)의 4%입니다.</p>
     <p><b>CenterPoint와 비교.</b> CenterPoint의 Head는 클래스 그룹 6개마다 따로 두고, 칸마다 "중심일 확률"과 박스 속성을 냈습니다. PointPillars는 칸 × anchor마다 답을 냅니다. 같은 칸이라도 차 anchor와 보행자 anchor는 전혀 다른 질문에 답하는 셈입니다.</p>
+    <p>왼쪽 3D 그림은 Neck 출력 위 한 칸(정답 차가 있는 칸)의 출력 72개를 벽처럼 쌓은 것입니다. 행이 anchor 6개, 열이 cls 3 · box 7 · dir 2입니다. 5단계에서 다른 칸들에도 같은 벽이 서는 것은 1×1 합성곱의 가중치 공유를 뜻합니다.</p>
     <p>ONNX 그래프에서 세 출력 앞에 <code>Transpose</code>가 있는 이유는 PyTorch 코드가 <code>permute(0, 2, 3, 1)</code>로 (N, H, W, C) 순서로 바꾸기 때문입니다. CUDA 후처리 커널은 이 순서를 그대로 가정합니다.</p>
   </div>
 </section>
 
-<!-- ============================ 14. 회귀 ============================ -->
+<!-- ============================ 15. 회귀 ============================ -->
 <section class="slide" id="s14" data-stage="head" data-title="회귀: anchor 대비 차이" data-steps="6">
   <header><span class="eyebrow">08 · 박스 회귀</span><h2>정답을 직접 말하지 않고, anchor와의 차이를 말한다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s14svg" viewBox="0 0 660 470" role="img" aria-label="anchor와 정답 박스, 인코딩 값"></svg>
+      <div class="v3" id="v3-s14" aria-label="anchor에서 정답 박스로 가는 차이값 3D 보기"></div>
+      <div class="legend"><span><i style="border:1.5px solid var(--muted);background:none"></i>anchor</span><span><i style="background:var(--teal)"></i>정답 박스</span><span><i style="background:var(--rose)"></i>정답 중심</span></div>
     </div>
     <div class="txt">
       <p class="q">박스 7개 값을 예측하는데, 왜 "12.52 m" 같은 값이 아니라 "anchor 대비 0.072" 같은 값을 예측하나?</p>
+      <p class="idea">길을 알려 줄 때 "위도 37.5665°"보다 "역에서 북쪽으로 300 m"가 쉽다. 가까운 기준점(anchor)에서 얼마나 떨어졌는지만 말하면 숫자가 작고 고르다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>위치</b>: 차이를 anchor 바닥 대각선 d = √(3.9² + 1.6²) = 4.215 m로 나눈다. 높이는 anchor 높이로 나눈다.</p></div>
       <div class="frag" data-s="2"><div class="eq">Δx = (x − x_a) / d  = (12.52 − 12.217) / 4.215 = <span class="hl">0.072</span>
 Δy = (y − y_a) / d  = (3.30 − 3.052) / 4.215  = <span class="hl">0.059</span>
@@ -491,7 +550,7 @@ box [1, 248, 216, 42] · dir [1, 248, 216, 12]</div>
   </div>
 </section>
 
-<!-- ============================ 15. 방향 분류 ============================ -->
+<!-- ============================ 16. 방향 분류 ============================ -->
 <section class="slide" id="s15" data-stage="head" data-title="방향 분류: 앞뒤 구분" data-steps="6">
   <header><span class="eyebrow">08 · 방향</span><h2>각도 회귀는 앞뒤를 모른다, 그래서 한 번 더 묻는다</h2></header>
   <div class="cols">
@@ -524,16 +583,17 @@ pred' − target' = sin(θ̂ − θ*)</div>
   </div>
 </section>
 
-<!-- ============================ 16. 학습 ① ============================ -->
+<!-- ============================ 17. 학습 ① ============================ -->
 <section class="slide" id="s16" data-stage="train" data-title="학습 ① 정답 할당" data-steps="6">
   <header><span class="eyebrow">09 · 학습</span><h2>32만 개 anchor 중 누가 어떤 물체를 맡나</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s16" width="1400" height="1100" aria-label="정답 차 주변 anchor의 IoU와 양성·음성 할당"></canvas>
+      <div class="v3" id="v3-s16" aria-label="정답 차 주변 anchor의 IoU 막대 3D 보기"></div>
       <div class="legend"><span class="frag" data-s="3"><i style="background:var(--heat)"></i>양성 IoU ≥ 0.6</span><span class="frag" data-s="3"><i style="background:var(--violet)"></i>무시 0.45 ~ 0.6</span><span class="frag" data-s="3"><i style="background:var(--line)"></i>음성 &lt; 0.45</span></div>
     </div>
     <div class="txt">
       <p class="q">신경망에게 "이 anchor는 차다"라고 가르치려면, 먼저 어느 anchor가 정답 차를 맡는지 정해야 한다. 기준은?</p>
+      <p class="idea">조별 과제 배정과 같다. 주제와 가장 많이 겹치는 사람에게 맡기고, 전혀 관계없는 사람은 "해당 없음", 애매한 사람은 이번엔 빼 둔다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>겹치는 정도(IoU)로 정한다.</b> 정답 박스와 anchor를 위에서 본 넓이로 비교한다: 겹친 넓이 / 합친 넓이.</p></div>
       <div class="frag" data-s="2">
         <table class="t" id="s16tab">
@@ -562,12 +622,13 @@ pred' − target' = sin(θ̂ − θ*)</div>
       <li>각 정답 박스와 IoU가 가장 높은 anchor는 임계값과 상관없이 양성(작거나 특이한 물체도 최소 하나는 배정).</li>
     </ul>
     <p><b>"nearest BEV" IoU.</b> 정확한 회전 IoU 대신, 정답 박스의 각도를 가까운 0° 또는 90°로 돌린 뒤 축 정렬 상자끼리 IoU를 잽니다. 계산이 빠르고, anchor 자체가 0°/90°라서 차이가 크지 않습니다. 표의 값도 이 방식으로 계산했습니다(정답 θ = 0.20 → 0°로 간주). 90° anchor는 길이와 폭이 뒤바뀌어 IoU 0.259로 모두 음성입니다.</p>
+    <p>왼쪽 3D 그림에서 막대 높이가 anchor마다 정답과의 IoU(0°·90° 중 큰 값)입니다. 두 반투명 판이 0.6(양성)과 0.45(음성) 기준선으로, 위 판을 뚫은 막대가 양성, 두 판 사이가 무시 구간입니다.</p>
     <p><b>임계값이 클래스마다 다른 이유.</b> 보행자처럼 작은 물체는 anchor 중심이 조금만 어긋나도 IoU가 급격히 떨어집니다. 같은 기준(0.6)을 쓰면 양성 anchor가 거의 없어지므로 기준을 0.5로 낮춥니다.</p>
     <p><b>CenterPoint와 비교.</b> CenterPoint는 정답 중심 칸 하나를 양성으로 두고 주변을 가우시안으로 부드럽게 채웠습니다. IoU 계산, 임계값, 무시 구간 같은 설계가 필요 없다는 것이 CenterPoint가 내세운 장점이었습니다.</p>
   </div>
 </section>
 
-<!-- ============================ 17. 학습 ② ============================ -->
+<!-- ============================ 18. 학습 ② ============================ -->
 <section class="slide" id="s17" data-stage="train" data-title="학습 ② 손실과 증강" data-steps="6">
   <header><span class="eyebrow">09 · 학습</span><h2>쉬운 배경은 덜 세고, 물체는 늘려서 배운다</h2></header>
   <div class="cols">
@@ -581,6 +642,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
     </div>
     <div class="txt">
       <p class="q">anchor 32만 개 중 거의 전부가 배경이다. 그냥 학습하면 무슨 일이 생기고, 어떻게 막나?</p>
+      <p class="idea">시험공부할 때 이미 맞히는 쉬운 문제는 그만 풀고 틀리는 문제에 집중하는 것. 잘 맞힌 anchor의 손실을 거의 0으로 깎는다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>보통의 분류 손실(BCE)</b>로는 "이미 잘 맞힌 배경"도 조금씩 손실을 낸다. 30만 개가 모이면 몇 안 되는 물체의 손실을 덮어 버린다.</p></div>
       <div class="frag" data-s="2"><div class="eq">Focal = −α (1 − p)^γ log p        <span class="c">양성</span>
       −(1 − α) p^γ log(1 − p)    <span class="c">음성</span>
@@ -604,22 +666,25 @@ pred' − target' = sin(θ̂ − θ*)</div>
     </ul>
     <p>쉬운 예제일수록 훨씬 많이 깎이므로, 학습 신호의 대부분이 어려운 anchor에서 나옵니다.</p>
     <p><b>α = 0.25의 의미.</b> 양성에 0.25, 음성에 0.75의 무게를 둡니다. 직관과 반대로 보이지만, γ가 음성의 손실을 이미 크게 줄였기 때문에 양성 쪽을 조금 낮춰 균형을 맞춘 값입니다(RetinaNet 논문의 실험 결과).</p>
-    <p><b>Smooth L1 (β = 1/9).</b> 오차가 작을 때(|e| &lt; 1/9)는 제곱, 크면 절댓값인 손실입니다. 큰 오차에 휘둘리지 않으면서 작은 오차 근처에서 매끄럽습니다. 7개 회귀값 모두 가중치 1.0이고, 각도는 14·15장의 sin 차이로 넣습니다. 정규화는 양성 anchor 수로 나눕니다.</p>
+    <p><b>Smooth L1 (β = 1/9).</b> 오차가 작을 때(|e| &lt; 1/9)는 제곱, 크면 절댓값인 손실입니다. 큰 오차에 휘둘리지 않으면서 작은 오차 근처에서 매끄럽습니다. 7개 회귀값 모두 가중치 1.0이고, 각도는 15·16장의 sin 차이로 넣습니다. 정규화는 양성 anchor 수로 나눕니다.</p>
     <p><b>GT 샘플링 (SECOND).</b> 학습 데이터 전체에서 정답 박스 안의 점들을 미리 잘라 데이터베이스로 만들어 두고, 학습 장면마다 차·보행자·자전거를 최대 15개씩 무작위로 붙여 넣습니다(다른 물체와 겹치지 않게, 점 5개 이상인 것만). KITTI는 장면당 물체 수가 적어서 효과가 매우 큽니다.</p>
   </div>
 </section>
 
-<!-- ============================ 18. 후처리 ============================ -->
+<!-- ============================ 19. 후처리 ============================ -->
 <section class="slide" id="s18" data-stage="post" data-title="후처리: 디코드와 NMS" data-steps="6">
   <header><span class="eyebrow">10 · 후처리</span><h2>32만 개 anchor에서 최종 박스 몇 개로</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s18" width="1400" height="1100" aria-label="후보 박스와 NMS 결과"></canvas>
+      <div class="btnrow" aria-hidden="true" style="pointer-events:none"><span class="chip heat" id="s18msg"></span></div>
+      <div class="v3" id="v3-s18" aria-label="후보, 3D 박스, NMS"></div>
+      <div class="legend"><span><i style="background:var(--heat)"></i>후보 / 남은 박스</span><span><i style="background:var(--rose)"></i>NMS로 지워지는 박스</span></div>
     </div>
     <div class="txt">
       <p class="q">anchor마다 점수와 박스가 나왔다. 한 물체에 걸친 여러 후보 중 무엇을 남기나?</p>
+      <p class="idea">여러 사람이 같은 차를 가리키며 "저기 차!"라고 외치면, 가장 확신하는 사람의 말만 받아 적고 나머지는 같은 말로 보고 지운다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>① 점수 거르기</b>: anchor마다 3개 클래스 점수(sigmoid) 중 최댓값이 0.1 이상인 것만 남긴다. 321,408개 → 보통 수백 개.</p></div>
-      <div class="frag" data-s="2"><p class="pt what"><b>② 디코드</b>: 남은 anchor의 Δ값을 박스로 복원한다(14·15장의 식). 한 물체 주변의 anchor 여러 개가 거의 같은 박스를 낸다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>② 디코드</b>: 남은 anchor의 Δ값을 박스로 복원한다(15·16장의 식). 한 물체 주변의 anchor 여러 개가 거의 같은 박스를 낸다.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>③ 정렬 + NMS</b>: 점수 높은 순으로 세우고, 앞 박스와 조금이라도 겹치는 뒤 박스를 지운다.</p></div>
       <div class="frag" data-s="4"><p class="pt why"><b>IoU 기준이 0.01로 아주 낮다.</b> 위에서 본 도로에서 두 물체는 거의 겹치지 않는다. 1%만 겹쳐도 "같은 물체의 중복"으로 본다. 클래스를 가리지 않고(class-agnostic) 한꺼번에 한다.</p></div>
       <div class="frag" data-s="5"><div class="eq">[1,248,216,18] + [..,42] + [..,12]
@@ -633,16 +698,18 @@ pred' − target' = sin(θ̂ − θ*)</div>
     <p><b>점수.</b> cls 출력 18개 중 anchor마다 3개에 sigmoid를 적용하고 최댓값과 그 클래스를 고릅니다. 0.1(<code>score_thresh</code>) 이상이면 <code>atomicAdd</code>로 출력 목록에 자리를 받아 9개 값을 씁니다.</p>
     <p><b>NMS (Non-Maximum Suppression).</b> 점수 내림차순으로 정렬한 뒤, 이미 남긴 박스와 BEV 회전 IoU가 0.01 이상인 박스를 지웁니다. 회전 IoU는 두 기울어진 직사각형의 교차 다각형 넓이를 구해 계산합니다(<code>devIoU</code>).</p>
     <p><b>GPU/CPU 분담.</b> 후보 n개를 64개씩 묶어 블록 (i, j)가 "i묶음의 박스가 j묶음의 어느 박스를 지우는가"를 64비트 마스크로 계산합니다. 모든 쌍의 겹침은 병렬로 구하고, "남긴 박스만 다른 박스를 지운다"는 순차 규칙은 CPU가 마스크를 한 번 훑으며 적용합니다. OpenPCDet의 <code>nms_gpu</code>와 같은 방식입니다.</p>
-    <p><b>원본과의 차이.</b> OpenPCDet 설정에는 NMS 전 최대 4,096개, 후 최대 500개 제한이 있지만, CUDA 구현에는 이 제한이 없습니다. 정확도는 거의 같습니다(21장).</p>
+    <p><b>원본과의 차이.</b> OpenPCDet 설정에는 NMS 전 최대 4,096개, 후 최대 500개 제한이 있지만, CUDA 구현에는 이 제한이 없습니다. 정확도는 거의 같습니다(22장).</p>
+    <p>왼쪽 3D 그림은 가상 장면에서 물체마다 후보를 몇 개씩 흔들어 만든 설명용 예시입니다. 1단계의 막대 높이가 점수, 3단계에서 분홍으로 변해 사라지는 박스가 NMS로 지워지는 후보입니다.</p>
     <p><b>CenterPoint와 비교.</b> CenterPoint는 task 그룹마다 따로 NMS(IoU 0.2)를 했고, 중심점 방식이라 후보가 애초에 적었습니다. anchor 방식은 한 물체에 양성 anchor가 여러 개라 NMS 의존도가 큽니다.</p>
   </div>
 </section>
 
-<!-- ============================ 19. 비교·한계 ============================ -->
+<!-- ============================ 20. 비교·한계 ============================ -->
 <section class="slide" id="s19" data-stage="" data-title="비교: PointPillars vs CenterPoint" data-steps="5">
   <header><span class="eyebrow">11 · 비교와 한계</span><h2>PointPillars와 CenterPoint는 무엇을 맞바꾸었나</h2></header>
   <div style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0">
     <p class="q">둘 다 "점 → 격자 → BEV → 검출"인데, 어디서 갈라지고 그 결과 무엇이 달라지나?</p>
+    <p class="idea">같은 요리를 전자레인지와 오븐으로 하는 차이. 한쪽은 빠르고 간단하고, 다른 쪽은 느리지만 속까지 고르게 익힌다. 무엇을 우선하느냐의 선택이다.</p>
     <table class="t" id="s19tab">
       <thead><tr><th></th><th>PointPillars (이 자료)</th><th>CenterPoint</th><th>무엇이 달라지나</th></tr></thead>
       <tbody>
@@ -674,7 +741,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
   </div>
 </section>
 
-<!-- ============================ 20. Orin 배포 ① ============================ -->
+<!-- ============================ 21. Orin 배포 ① ============================ -->
 <section class="slide" id="s20" data-stage="deploy" data-title="Orin 배포 ① 개념" data-steps="6">
   <header><span class="eyebrow">12 · Orin 배포</span><h2>학습한 모델을 Orin에서 빠르게 돌리기</h2></header>
   <div class="cols">
@@ -684,6 +751,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
     </div>
     <div class="txt">
       <p class="q">PyTorch로 학습한 모델을 그대로 Orin에 올리면 안 되나? 무엇을 바꿔야 빨라지나?</p>
+      <p class="idea">연습장에 풀어 둔 풀이를 시험 답안으로 옮겨 적는 것. 내용(가중치)은 그대로 두고, 군더더기를 지우고 기계가 가장 빨리 읽는 형태로 다시 쓴다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>PyTorch 모델에는 추론에 불필요한 것이 많다.</b> 파이썬 코드로 된 전처리·후처리, 학습용 층, 동적인 텐서 모양.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>ONNX로 내보낸 뒤 "그래프 수술"을 한다.</b> 전처리(10채널 만들기)와 후처리(디코드·NMS)는 잘라내 CUDA 커널로 옮기고, Scatter는 플러그인 하나로 바꾼다. 남은 것은 순수한 텐서 연산뿐이다.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>TensorRT가 층을 합친다.</b> Conv → BN → ReLU를 커널 하나로. BN은 추론 때 상수라 conv 가중치에 미리 곱해 둘 수 있다.</p>
@@ -703,11 +771,11 @@ pred' − target' = sin(θ̂ − θ*)</div>
     </ul>
     <p>최종 그래프: MatMul 1, BatchNormalization 4, Relu 20, Conv 19, ConvTranspose 3, Concat 1, Transpose 3, ReduceMax 1, Reshape 2, PPScatterPlugin 1.</p>
     <p><b>3. BN folding.</b> 추론 때 BN은 y = γ(x − μ)/σ + β로 고정된 선형 변환입니다. 바로 앞 conv의 출력 x = W·u + b에 대입하면 y = (γW/σ)·u + (γ(b − μ)/σ + β)로, 가중치와 bias만 바뀐 conv 하나가 됩니다. 계산량이 줄고 메모리 왕복이 한 번 줄어듭니다.</p>
-    <p><b>4. FP16.</b> 부호 1, 지수 5, 가수 10비트로, 약 3~4자리 정밀도와 ±65,504 범위를 가집니다. 신경망 추론에는 대개 충분합니다. 정확도 영향은 21장의 표처럼 거의 없습니다.</p>
+    <p><b>4. FP16.</b> 부호 1, 지수 5, 가수 10비트로, 약 3~4자리 정밀도와 ±65,504 범위를 가집니다. 신경망 추론에는 대개 충분합니다. 정확도 영향은 22장의 표처럼 거의 없습니다.</p>
   </div>
 </section>
 
-<!-- ============================ 21. Orin 배포 ② ============================ -->
+<!-- ============================ 22. Orin 배포 ② ============================ -->
 <section class="slide" id="s21" data-stage="deploy" data-title="Orin 배포 ② 실무" data-steps="5">
   <header><span class="eyebrow">12 · Orin 배포</span><h2>누가 무엇을 돌리고, 얼마나 걸리나</h2></header>
   <div class="cols wide">
@@ -716,6 +784,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
     </div>
     <div class="txt">
       <p class="q">파이프라인을 왜 CUDA 커널과 TensorRT 엔진으로 나눴고, 시간은 어디에 드나?</p>
+      <p class="idea">주방의 분업. 재료 손질(Pillar화), 조리(신경망), 담기(후처리)를 각각 가장 잘하는 도구에 맡긴다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>세 덩어리로 나뉜다.</b> ① Pillar화: CUDA 커널 3개 ② PFN~Head: TensorRT 엔진 하나 ③ 디코드·NMS: CUDA 커널 + thrust + CPU.</p></div>
       <div class="frag" data-s="2"><p class="pt why"><b>왜 나누나?</b> Pillar화와 NMS는 "점마다, 후보마다" 가변 개수를 다루는 연산이라 TensorRT의 고정 그래프로 표현하기 어렵다. 반대로 합성곱은 TensorRT가 가장 잘한다. 각자 잘하는 곳에 둔다.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>시간의 71%는 네트워크</b>(4.87 ms). 그중 대부분은 2D 백본의 합성곱이다. 전처리는 0.18 ms로 거의 공짜다.</p></div>
@@ -747,7 +816,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
   </div>
 </section>
 
-<!-- ============================ 22. 정리 ============================ -->
+<!-- ============================ 23. 정리 ============================ -->
 <section class="slide" id="s22" data-stage="" data-title="정리" data-steps="2">
   <header><span class="eyebrow">13 · 정리</span><h2>한 장으로 보는 PointPillars</h2></header>
   <div style="display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
@@ -806,7 +875,7 @@ pred' − target' = sin(θ̂ − θ*)</div>
   <div class="foot">
     <button type="button" id="prev" aria-label="이전">← 이전</button>
     <button type="button" id="next" class="primary" aria-label="다음">다음 →</button>
-    <span class="counter" id="counter">1 / 22</span>
+    <span class="counter" id="counter">1 / 23</span>
     <div class="dots" id="dots"></div>
     <div class="prog"><b id="progbar"></b></div>
     <span class="hint">N 노트 · T 목차</span>

@@ -113,6 +113,18 @@ canvas{display:block;max-width:100%}
 .v3err{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:16px;text-align:center}
 .strip-on{border-color:var(--heat)!important;background:var(--heat-soft)!important;color:var(--heat)}
 
+/* overview sequence list */
+.seq{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.seq li{display:grid;grid-template-columns:20px 1fr;gap:0 8px;padding:5px 10px;border:1px solid var(--line);border-radius:4px;font-size:13.5px;line-height:1.4;color:var(--muted);transition:background .3s,border-color .3s,color .3s}
+.seq li>span{font-family:var(--mono);font-size:11px;padding-top:2px}
+.seq li b{font-weight:500}
+.seq li code{font-size:11.5px;background:none;padding:0;color:var(--violet)}
+.seq li small{display:none;grid-column:2;font-size:12.5px;color:var(--ink)}
+.seq li.done{color:var(--ink)}
+.seq li.on{border-color:var(--heat);background:var(--heat-soft);color:var(--ink)}
+.seq li.on b{font-weight:700}
+.seq li.on small{display:block}
+
 /* fragments */
 .frag{opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease;pointer-events:none}
 .frag.on{opacity:1;transform:none;pointer-events:auto}
@@ -356,7 +368,7 @@ body.flow .v3{min-height:320px}
       <div class="frag" data-s="4">
         <p class="pt why"><b>이점 ① 회전에 무관하다.</b> 점에는 방향이 없어서, 차가 어느 쪽을 봐도 똑같이 찾는다.</p>
         <p class="pt why"><b>이점 ② 설계할 것이 적다.</b> anchor 크기·비율·IoU 기준 같은 수작업 설정이 사라진다.</p>
-        <p class="pt why"><b>이점 ③ 추적이 쉽다.</b> 물체가 점 하나이므로, 속도로 옮긴 뒤 가장 가까운 점끼리 이으면 된다 (19장).</p>
+        <p class="pt why"><b>이점 ③ 추적이 쉽다.</b> 물체가 점 하나이므로, 속도로 옮긴 뒤 가장 가까운 점끼리 이으면 된다 (20장).</p>
       </div>
     </div>
   </div>
@@ -401,7 +413,47 @@ body.flow .v3{min-height:320px}
   </div>
 </section>
 
-<!-- ============================ 5. 입력 ============================ -->
+<!-- ============================ 5. 한눈에 보기 (3D 시퀀스) ============================ -->
+<section class="slide" id="seq" data-stage="" data-title="한눈에 보기: 3D로 따라가기" data-steps="8">
+  <header><span class="eyebrow">03 · 한눈에 보기</span><h2>한 장면으로 따라가는 CenterPoint 전체</h2></header>
+  <div class="cols wide">
+    <div class="vis">
+      <div class="btnrow" aria-hidden="true" style="pointer-events:none"><span class="chip heat" id="seqcap"></span></div>
+      <div class="v3" id="v3-seq" aria-label="CenterPoint 전체 과정 3D 시퀀스"></div>
+    </div>
+    <div class="txt">
+      <p class="q">점 구름 한 장이 박스 목록이 되기까지, 같은 장면 위에서 무슨 일이 일어나나?</p>
+      <ol class="seq" id="seqlist">
+        <li><span>1</span><div><b>점 구름</b> <code>[N, 5]</code><small>10 sweep을 겹치고 점마다 시간 Δt를 붙인다. 순서도 격자도 없다.</small></div></li>
+        <li><span>2</span><div><b>복셀화</b> <code>[V, 5]</code><small>7.5 cm 칸에 담고 칸마다 평균. 점이 든 칸만 남는다. (그림은 30 cm 칸)</small></div></li>
+        <li><span>3</span><div><b>3D Sparse 백본</b> <code>[128, 2, 180, 180]</code><small>빈칸은 건너뛰며 3D 모양을 읽는다. 해상도 1/8, 높이는 2층으로 요약된다.</small></div></li>
+        <li><span>4</span><div><b>BEV</b> <code>[256, 180, 180]</code><small>높이 2층을 채널로 눕혀 "위에서 본 지도" 한 장으로.</small></div></li>
+        <li><span>5</span><div><b>Neck</b> <code>[512, 180, 180]</code><small>가까이 보는 눈과 멀리 보는 눈을 이어 붙인다.</small></div></li>
+        <li><span>6</span><div><b>Heatmap</b> <code>6 × [C, 180, 180]</code><small>칸마다 "여기가 중심일 확률". 물체 중심에 봉우리가 솟는다.</small></div></li>
+        <li><span>7</span><div><b>회귀 → 후보 박스</b> <code>10 값 / 칸</code><small>점수 0.1을 넘는 칸마다 크기·방향·높이·속도를 읽어 박스로 복원한다.</small></div></li>
+        <li><span>8</span><div><b>NMS</b> <code>[K, 11]</code><small>겹치는 후보를 지우면 물체마다 박스 하나와 속도 화살표가 남는다.</small></div></li>
+      </ol>
+      <p class="idea">3D를 다루는 건 앞의 세 단계다. BEV로 편 뒤부터는 이미지 검출기(CenterNet)처럼 지도에서 봉우리를 찾는다.</p>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>이 장의 사용법</h3>
+    <p>클릭할 때마다 파이프라인이 한 단계씩 진행됩니다. 모든 단계가 <b>같은 가상 장면</b> 위에서 일어나므로, 점이 복셀이 되고, 복셀이 두 층으로 요약되고, 지도가 되고, 지도에서 봉우리와 박스가 솟는 변화를 끊김 없이 볼 수 있습니다. 드래그로 돌려 보고, R 키로 시점을 되돌립니다.</p>
+    <ol>
+      <li><b>점 구름</b> → 6장.</li>
+      <li><b>복셀화</b>: 점이 든 칸만 상자로 그렸다. 실제 칸(7.5 cm)은 너무 작아 30 cm로 키웠다 → 7·8장.</li>
+      <li><b>3D Sparse 백본</b>: 마지막 출력은 0.6 m 칸에 높이 2층이다. 아래층(청록)은 센서 기준 z −5~−1 m, 위층(보라)은 −1~3 m 구간으로, 실제 층 경계를 그대로 그렸다 → 9~11장.</li>
+      <li><b>BEV</b>: 두 층이 내려앉아 판 한 장이 된다 → 12장.</li>
+      <li><b>Neck</b>: 더 두꺼운 판(채널 512) → 13장.</li>
+      <li><b>Heatmap</b>: 여섯 task 지도를 겹쳐(최댓값) 한 지형으로 그렸다 → 14·15장.</li>
+      <li><b>회귀 → 후보 박스</b>: 봉우리 주변 여러 칸이 거의 같은 박스를 낸다 → 16장.</li>
+      <li><b>NMS</b>: 살아남은 박스, 점수, 속도(화살표 길이 ∝ 속도) → 19장.</li>
+    </ol>
+    <p>판의 두께와 칸 크기는 보기 좋게 조정한 개념도입니다. 정확한 텐서 모양은 오른쪽 목록과 각 장을 기준으로 하세요.</p>
+  </div>
+</section>
+
+<!-- ============================ 6. 입력 ============================ -->
 <section class="slide" id="s5" data-stage="input" data-title="입력: 점과 시간" data-steps="6">
   <header><span class="eyebrow">04 · 입력</span><h2>점 하나에 담긴 5개 숫자, 그리고 시간</h2></header>
   <div class="cols">
@@ -411,6 +463,7 @@ body.flow .v3{min-height:320px}
     </div>
     <div class="txt">
       <p class="q">왜 한 순간의 스캔이 아니라 여러 번의 스캔을 겹치고, 점마다 "시간"을 붙이나?</p>
+      <p class="idea">사진 한 장으로는 공이 움직이는지 알 수 없지만, 셔터를 오래 연 사진에는 궤적이 남는다. 여러 스캔을 겹치면 움직이는 물체에 "꼬리"가 생긴다.</p>
       <div class="frag" data-s="1">
         <p class="pt shape"><b>점 1개 = 5개 숫자</b></p>
         <div class="mat-wrap"><div class="mat" style="grid-template-columns:repeat(5,auto)"><span>12.34</span><span>−3.21</span><span>0.57</span><span>12</span><span>0.00</span></div></div>
@@ -435,7 +488,7 @@ body.flow .v3{min-height:320px}
   </div>
 </section>
 
-<!-- ============================ 6. 복셀화 ① ============================ -->
+<!-- ============================ 7. 복셀화 ① ============================ -->
 <section class="slide" id="s6" data-stage="voxel" data-title="복셀화 ① 격자에 담기" data-steps="6">
   <header><span class="eyebrow">05 · 복셀화</span><h2>흩어진 점을 모눈종이 위에 올린다</h2></header>
   <div class="cols">
@@ -468,7 +521,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
   </div>
 </section>
 
-<!-- ============================ 7. 복셀화 ② ============================ -->
+<!-- ============================ 8. 복셀화 ② ============================ -->
 <section class="slide" id="s7" data-stage="voxel" data-title="복셀화 ② 요약과 희소성" data-steps="7">
   <header><span class="eyebrow">05 · 복셀화</span><h2>한 칸을 숫자 5개로 요약하고, 빈칸은 버린다</h2></header>
   <div class="cols">
@@ -506,6 +559,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
     </div>
     <div class="txt">
       <p class="q">한 칸에 점이 여러 개 들어가면 어떻게 하나? 그리고 칸 대부분이 비어 있다면?</p>
+      <p class="idea">반마다 학생 수가 달라도 "반 평균 키" 하나면 반끼리 비교할 수 있다. 칸마다 대표값 하나만 남긴다.</p>
       <div class="frag" data-s="1"><p class="pt what">칸마다 점 개수가 다르다(0개, 1개, 7개…). 신경망에는 <b>칸마다 같은 길이의 벡터</b>가 필요하다.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>답: 평균을 낸다.</b> 점 k개의 <code>[k,5]</code>를 열마다 평균 내어 <code>[1,5]</code> 하나로 요약한다. 학습할 가중치가 없는 단순 연산이다.</p></div>
       <div class="frag" data-s="3"><p class="pt why"><b>왜 평균으로 충분한가?</b> 7.5 cm 칸 안의 세부 모양은 어차피 작다. 평균은 점 순서와 무관하고(순서 없음 문제 해결), 계산이 거의 공짜다. 모양을 이해하는 일은 뒤의 3D 합성곱이 이웃 칸들을 보며 맡는다.</p></div>
@@ -525,7 +579,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
   </div>
 </section>
 
-<!-- ============================ 8. Sparse Conv ① ============================ -->
+<!-- ============================ 9. Sparse Conv ① ============================ -->
 <section class="slide" id="s8" data-stage="sparse" data-title="Sparse Conv ① 원리" data-steps="7">
   <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>빈칸은 계산하지 않는 합성곱</h2></header>
   <div class="cols">
@@ -536,6 +590,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
     </div>
     <div class="txt">
       <p class="q">칸 대부분이 비어 있는 격자에 보통 합성곱을 하면 어떻게 되나? 빈칸을 건너뛸 수 있나?</p>
+      <p class="idea">텅 빈 운동장에서 사람을 찾을 때 모든 칸을 밟아 볼 필요는 없다. 사람이 서 있는 곳과 그 옆만 찾아가 말을 건다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>일반(dense) 합성곱:</b> 커널이 모든 칸을 훑는다. 계산 대부분이 빈칸이고, 결과는 값이 사방으로 번져 <b>빈칸이 사라진다</b>.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>Sparse Conv:</b> 커널이 값이 있는 칸에 <b>닿는 위치에서만</b> 계산한다. 계산은 줄지만 출력 칸은 여전히 주변으로 한 칸씩 번진다.</p></div>
       <div class="frag" data-s="3"><p class="pt why">층을 쌓을수록 번짐이 누적된다(2층이면 두 칸). 수십 층을 쌓으면 결국 다시 조밀해진다.</p></div>
@@ -557,7 +612,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
   </div>
 </section>
 
-<!-- ============================ 9. Sparse Conv ② ============================ -->
+<!-- ============================ 10. Sparse Conv ② ============================ -->
 <section class="slide" id="s9" data-stage="sparse" data-title="Sparse Conv ② 행렬 곱으로" data-steps="7">
   <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>희소 합성곱을 "행렬 곱"으로 바꾸기</h2></header>
   <div class="cols even">
@@ -625,11 +680,11 @@ W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
     <p>토이 예제 A의 최종 출력 = W(0,0)·A + W(+1,0)·B + W(+1,+1)·C 입니다. 슬라이드에서는 앞의 두 항까지만 계산했습니다.</p>
     <p>Dense 합성곱이었다면 5×4 = 20칸 격자 전부에서 9번씩 곱해 180회인데, 여기서는 10회입니다. 실제 LiDAR에서는 활성 비율이 0.13%라 차이가 수백 배 이상 벌어집니다.</p>
     <p><b>파라미터 수.</b> 3D 3×3×3 커널이면 오프셋이 27개입니다. conv4 스테이지의 SubM 층 하나는 27 × 128 × 128 = 442,368개 가중치를 갖습니다. 가중치 개수는 dense와 같고, 계산하는 위치만 다릅니다.</p>
-    <p><b>BN과 ReLU.</b> 학습 때 각 합성곱 뒤에 BatchNorm과 ReLU가 있지만, 배포 시 BN은 합성곱 가중치에 합쳐지고(20장), ReLU는 합성곱 연산의 활성화 옵션으로 흡수됩니다.</p>
+    <p><b>BN과 ReLU.</b> 학습 때 각 합성곱 뒤에 BatchNorm과 ReLU가 있지만, 배포 시 BN은 합성곱 가중치에 합쳐지고(21장), ReLU는 합성곱 연산의 활성화 옵션으로 흡수됩니다.</p>
   </div>
 </section>
 
-<!-- ============================ 10. 3D 백본 ============================ -->
+<!-- ============================ 11. 3D 백본 ============================ -->
 <section class="slide" id="s10" data-stage="sparse" data-title="3D 백본 구조" data-steps="9">
   <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>해상도는 줄이고, 채널은 늘린다</h2></header>
   <div class="cols wide">
@@ -668,7 +723,7 @@ W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
   </div>
 </section>
 
-<!-- ============================ 11. BEV ============================ -->
+<!-- ============================ 12. BEV ============================ -->
 <section class="slide" id="s11" data-stage="bev" data-title="BEV: 위에서 본 지도" data-steps="7">
   <header><span class="eyebrow">07 · BEV</span><h2>높이를 채널로 눕혀, 위에서 본 지도로</h2></header>
   <div class="cols">
@@ -699,7 +754,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   </div>
 </section>
 
-<!-- ============================ 12. Neck ============================ -->
+<!-- ============================ 13. Neck ============================ -->
 <section class="slide" id="s12" data-stage="neck" data-title="Neck: 두 가지 시야" data-steps="7">
   <header><span class="eyebrow">08 · Neck (RPN)</span><h2>가까이 보는 눈과 멀리 보는 눈을 합친다</h2></header>
   <div class="cols wide">
@@ -736,7 +791,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   </div>
 </section>
 
-<!-- ============================ 13. Head 구조 ============================ -->
+<!-- ============================ 14. Head 구조 ============================ -->
 <section class="slide" id="s13" data-stage="head" data-title="Head: 칸마다 묻는 질문" data-steps="6">
   <header><span class="eyebrow">09 · CenterHead</span><h2>지도의 모든 칸에 같은 질문을 던진다</h2></header>
   <div class="cols">
@@ -776,7 +831,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   </div>
 </section>
 
-<!-- ============================ 14. Heatmap ============================ -->
+<!-- ============================ 15. Heatmap ============================ -->
 <section class="slide" id="s14" data-stage="head" data-title="Heatmap: 중심 확률 지도" data-steps="6">
   <header><span class="eyebrow">09 · CenterHead</span><h2>Heatmap: "여기가 중심일 확률" 지도</h2></header>
   <div class="cols">
@@ -786,6 +841,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
     </div>
     <div class="txt">
       <p class="q">"중심일 확률 지도"는 어떻게 생겼고, 왜 봉우리 모양인가?</p>
+      <p class="idea">등고선 지도의 산봉우리를 떠올리자. 산마다 꼭대기가 하나 있고, 꼭대기의 위치가 곧 "물체가 있는 곳"이다.</p>
       <p class="pt shape">격자 180×180, 한 칸 = <b>0.6 m</b>. 값은 <code>sigmoid(hm)</code> ∈ (0, 1).</p>
       <div class="frag" data-s="1"><p class="pt what"><b>물체 중심에 봉우리가 솟는다.</b> 중심 칸이 가장 높고 멀어질수록 부드럽게 낮아진다. 나머지 대부분은 거의 0.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>그룹마다, 클래스마다 지도가 따로 있다.</b> 위 버튼으로 바꿔 보자. 승용차 지도엔 승용차만, 보행자·콘 지도엔 작은 봉우리들만 뜬다.</p></div>
@@ -800,14 +856,14 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <div class="notes">
     <h3>Heatmap 읽는 법</h3>
     <p>각 task 그룹의 <code>hm</code> 출력은 <code>[1, 클래스 수, 180, 180]</code>입니다. 값에 sigmoid를 적용하면 칸 (y, x)가 해당 클래스 물체의 중심일 확률이 됩니다.</p>
-    <p>이미지 검출의 CenterNet에서는 3×3 max-pooling으로 "주변보다 높은 칸"(local maximum)만 골라 봉우리 하나당 물체 하나로 봅니다. CenterPoint의 nuScenes 설정과 CUDA-CenterPoint는 max-pooling 대신 <b>점수 0.1 이상인 모든 칸</b>을 후보로 삼고, 겹치는 박스를 NMS로 정리합니다(18장).</p>
-    <p><b>봉우리의 폭</b>은 물체 크기에 따라 다릅니다. 큰 물체는 조금 어긋나도 박스가 많이 겹치므로 봉우리가 넓고, 작은 물체는 좁습니다(16장 "가우시안 반지름").</p>
+    <p>이미지 검출의 CenterNet에서는 3×3 max-pooling으로 "주변보다 높은 칸"(local maximum)만 골라 봉우리 하나당 물체 하나로 봅니다. CenterPoint의 nuScenes 설정과 CUDA-CenterPoint는 max-pooling 대신 <b>점수 0.1 이상인 모든 칸</b>을 후보로 삼고, 겹치는 박스를 NMS로 정리합니다(19장).</p>
+    <p><b>봉우리의 폭</b>은 물체 크기에 따라 다릅니다. 큰 물체는 조금 어긋나도 박스가 많이 겹치므로 봉우리가 넓고, 작은 물체는 좁습니다(17장 "가우시안 반지름").</p>
     <p>왼쪽 3D 지형은 가상 장면에 대해 봉우리 모양을 시각화한 것입니다(실제 모델 출력 아님). 108 m × 108 m 전체 180×180칸에서 높이 = 점수입니다. 반투명 판은 점수 0.1 기준선으로, 판을 뚫고 올라온 부분이 후보 칸입니다.</p>
     <p><b>해상도가 0.6 m라는 것의 의미.</b> 보행자 폭(약 0.7 m)이 한두 칸밖에 안 됩니다. 그래서 칸 번호만으로는 위치가 부정확하고, 칸 안의 정확한 위치를 <code>reg</code> 헤드가 따로 보정합니다(다음 장).</p>
   </div>
 </section>
 
-<!-- ============================ 15. 회귀 ============================ -->
+<!-- ============================ 16. 회귀 ============================ -->
 <section class="slide" id="s15" data-stage="head" data-title="회귀: 박스 속성 읽기" data-steps="7">
   <header><span class="eyebrow">09 · CenterHead</span><h2>중심 칸에서 박스를 읽어내는 법</h2></header>
   <div class="cols">
@@ -817,6 +873,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
     </div>
     <div class="txt">
       <p class="q">중심 칸을 찾았다. 그런데 칸은 0.6 m나 되는데, 정확한 박스는 어떻게 얻나? 그리고 왜 이런 형태로 예측하나?</p>
+      <p class="idea">"3번 칸" 대신 "3번 칸에서 오른쪽으로 0.37칸, 위로 0.62칸"이라고 말하면 칸보다 정밀해진다. 나머지 속성도 배우기 쉬운 눈금으로 바꿔 말한다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>오프셋 reg (Δx, Δy):</b> 칸 모서리에서 실제 중심까지 "몇 분의 몇 칸"인가. 칸 크기로 뭉개진 위치를 되살린다.</p>
         <div class="eq">x = (col + Δx) · 8 · 0.075 − 54
   = (110 + 0.37) · 0.6 − 54 = <span class="hl">12.22 m</span></div></div>
@@ -836,14 +893,14 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
       <li><b>오프셋:</b> 칸 번호(정수)와 실제 위치의 차이는 항상 0~1칸 사이입니다. 범위가 작고 일정해서 배우기 쉽습니다. 이것이 없으면 위치 오차가 최대 0.6 m로, 보행자에게는 치명적입니다.</li>
       <li><b>log 크기:</b> L1 loss로 크기를 직접 배우면 버스의 1 m 오차와 콘의 1 m 오차가 같은 벌점을 받습니다. log 공간에서는 "10% 틀림"이 크기와 상관없이 같은 벌점입니다. 또 exp()의 결과는 항상 양수라 음수 크기가 나올 수 없습니다.</li>
       <li><b>sin/cos:</b> 각도는 원(周期) 위의 값이라 −π와 +π가 같은 방향입니다. 숫자 하나로 예측하면 경계에서 loss가 튀고, 신경망이 "평균"을 내면 엉뚱한 방향(0°)이 나옵니다. (sin, cos) 두 값은 연속이고, <code>atan2(sin, cos)</code>로 정확한 각도를 되찾습니다.</li>
-      <li><b>속도:</b> nuScenes 평가(NDS)에 속도 오차(mAVE)가 포함됩니다. 속도는 추적에도 쓰입니다(19장).</li>
+      <li><b>속도:</b> nuScenes 평가(NDS)에 속도 오차(mAVE)가 포함됩니다. 속도는 추적에도 쓰입니다(20장).</li>
     </ul>
     <p><b>디코딩 공식</b> (CUDA <code>predictKernel</code>): <code>x = (col + reg[0]) · 8 · 0.075 − 54</code>, <code>y = (row + reg[1]) · 8 · 0.075 − 54</code>, <code>z = height</code>, <code>(w,l,h) = exp(dim)</code>, <code>yaw = atan2(rot[0], rot[1])</code>.</p>
     <p>예시(col=110, row=95)의 y = (95 + 0.62) · 0.6 − 54 = 3.37 m. 앞 장들의 가상 장면에서 30° 기울어진 승용차의 값입니다.</p>
   </div>
 </section>
 
-<!-- ============================ 16. 학습 ① ============================ -->
+<!-- ============================ 17. 학습 ① ============================ -->
 <section class="slide" id="s16" data-stage="train" data-title="학습 ① 정답 지도 만들기" data-steps="6">
   <header><span class="eyebrow">10 · 학습</span><h2>정답 heatmap은 이렇게 그린다</h2></header>
   <div class="cols even">
@@ -856,6 +913,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
     </div>
     <div class="txt">
       <p class="q">학습하려면 "정답 확률 지도"가 필요하다. 사람이 단 박스 라벨에서 어떻게 만드나?</p>
+      <p class="idea">과녁처럼 채점한다. 한가운데를 맞히면 만점, 조금 빗나가도 부분 점수. 정답 지도를 "한 점"이 아니라 "과녁"으로 그린다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>① 중심 칸 찾기:</b> 박스 중심을 BEV 칸 번호로 바꾼다.</p>
         <div class="eq">col = (12.22 + 54) / 0.6 = 110.37 → <span class="hl">110</span>
 row = (3.37 + 54) / 0.6 = 95.62  → <span class="hl">95</span>
@@ -879,7 +937,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
   </div>
 </section>
 
-<!-- ============================ 17. 학습 ② ============================ -->
+<!-- ============================ 18. 학습 ② ============================ -->
 <section class="slide" id="s17" data-stage="train" data-title="학습 ② Focal loss" data-steps="6">
   <header><span class="eyebrow">10 · 학습</span><h2>정답은 몇 칸, 오답은 3만 칸: Focal loss</h2></header>
   <div class="cols">
@@ -925,7 +983,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
   </div>
 </section>
 
-<!-- ============================ 18. 후처리 ============================ -->
+<!-- ============================ 19. 후처리 ============================ -->
 <section class="slide" id="s18" data-stage="post" data-title="후처리: 박스 복원과 NMS" data-steps="7">
   <header><span class="eyebrow">11 · 후처리</span><h2>봉우리에서 최종 박스 목록까지</h2></header>
   <div class="cols">
@@ -935,8 +993,9 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
     </div>
     <div class="txt">
       <p class="q">확률 지도와 회귀 지도에서, 물체당 박스 하나짜리 목록을 어떻게 만드나?</p>
+      <p class="idea">여러 사람이 같은 차를 가리키며 "저기 차!"라고 외치면, 가장 확신하는 사람의 말만 받아 적고 나머지는 같은 말로 보고 지운다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>① 후보 고르기:</b> 칸마다 클래스 중 최고 점수 <code>max(sigmoid(hm))</code>. 0.1을 넘고 범위(±61.2 m) 안이면 후보.</p></div>
-      <div class="frag" data-s="2"><p class="pt what"><b>② 박스 복원:</b> 후보 칸마다 15장의 공식으로 (x, y, z, w, l, h, yaw, vx, vy)를 계산한다. 한 물체 주변의 여러 칸이 거의 같은 박스를 만든다.</p></div>
+      <div class="frag" data-s="2"><p class="pt what"><b>② 박스 복원:</b> 후보 칸마다 16장의 공식으로 (x, y, z, w, l, h, yaw, vx, vy)를 계산한다. 한 물체 주변의 여러 칸이 거의 같은 박스를 만든다.</p></div>
       <div class="frag" data-s="3"><p class="pt what"><b>③ 점수순 정렬 → NMS:</b> 가장 높은 박스를 남기고, 그것과 BEV에서 IoU &gt; 0.2로 겹치는 박스를 지운다. 이를 반복한다.</p></div>
       <div class="frag" data-s="4"><p class="pt shape"><b>④ 결과:</b> 그룹당 최대 83개. 물체마다 <code>[x, y, z, w, l, h, vx, vy, yaw, label, score]</code> 11개 값.</p></div>
       <div class="frag" data-s="5"><p class="pt why"><b>왜 "회전된" IoU인가?</b> 기울어진 차 두 대가 나란히 있으면 축 정렬 상자로는 크게 겹쳐 보여 한 대가 잘못 지워진다. 실제 회전된 사각형끼리 겹친 면적을 계산해야 한다.</p></div>
@@ -954,7 +1013,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
   </div>
 </section>
 
-<!-- ============================ 19. 확장 개념 ============================ -->
+<!-- ============================ 20. 확장 개념 ============================ -->
 <section class="slide" id="s19" data-stage="post" data-title="확장: 추적과 2단계 정제" data-steps="6">
   <header><span class="eyebrow">12 · 확장 개념</span><h2>점으로 표현한 덕분에 얻는 것: 추적</h2></header>
   <div class="cols">
@@ -963,6 +1022,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
     </div>
     <div class="txt">
       <p class="q">물체마다 속도까지 예측하면, 무엇을 거의 공짜로 얻나?</p>
+      <p class="idea">연속 사진 두 장에서 같은 사람을 찾을 때, 걷던 방향과 빠르기를 알면 "0.5초 전엔 저기 있었겠구나"를 거꾸로 짚어 쉽게 짝지을 수 있다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>두 프레임</b>: 이전 프레임(t−1)의 물체들과 현재 프레임(t)의 물체들. "누가 누구인가"를 이어야 추적이 된다.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>현재 중심을 속도로 되돌린다:</b></p><div class="eq">p' = p_t − v_t · Δt</div><p class="small muted" style="margin:4px 0 0">"0.5초 전에 이 물체는 여기 있었을 것이다"</p></div>
       <div class="frag" data-s="3"><p class="pt why"><b>가장 가까운 점끼리 짝짓기(greedy).</b> 되돌린 위치와 이전 물체 중 가장 가까운 것을 연결하고, 거리가 기준보다 멀면 새 물체로 본다. 칼만 필터 같은 복잡한 모델 없이도 nuScenes 추적 성능이 매우 높았다. 물체가 "점"이기에 가능한 단순함이다.</p></div>
@@ -984,7 +1044,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
   </div>
 </section>
 
-<!-- ============================ 20. Orin ① ============================ -->
+<!-- ============================ 21. Orin ① ============================ -->
 <section class="slide" id="s20" data-stage="deploy" data-title="Orin 배포 ① 개념" data-steps="6">
   <header><span class="eyebrow">13 · Orin 배포</span><h2>같은 모델을 더 빠르게: 그래프 최적화와 낮은 정밀도</h2></header>
   <div class="cols even">
@@ -1007,6 +1067,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
     </div>
     <div class="txt">
       <p class="q">학습된 가중치는 그대로인데, 어떻게 PyTorch보다 10배 이상 빨라지나?</p>
+      <p class="idea">연습장에 풀어 둔 풀이를 시험 답안으로 옮겨 적는 것. 내용(가중치)은 그대로 두고, 군더더기를 지우고 기계가 가장 빨리 읽는 형태로 다시 쓴다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>PyTorch는 "유연함"을 위해 설계됐다.</b> 층마다 파이썬이 GPU에 작업을 하나씩 던지고, 중간 결과를 매번 메모리에 썼다 읽는다. README 기준 A30에서 PyTorch 3 FPS → CUDA-CenterPoint 47 FPS.</p></div>
       <div class="frag" data-s="2"><p class="pt what"><b>ONNX:</b> 모델을 "계산 그래프"라는 데이터 파일로 뽑아낸다. 파이썬 없이 어떤 엔진이든 읽을 수 있다.</p></div>
       <div class="frag" data-s="3"><p class="pt why"><b>층 합치기(fusion):</b> Conv → BN → ReLU 세 번의 메모리 왕복을 커널 하나로. BN은 추론 때 상수이므로 합성곱 가중치에 미리 곱해 넣을 수 있다.</p>
@@ -1032,7 +1093,7 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
   </div>
 </section>
 
-<!-- ============================ 21. Orin ② ============================ -->
+<!-- ============================ 22. Orin ② ============================ -->
 <section class="slide" id="s21" data-stage="deploy" data-title="Orin 배포 ② 실무" data-steps="6">
   <header><span class="eyebrow">13 · Orin 배포</span><h2>CUDA-CenterPoint의 실제 구성과 시간</h2></header>
   <div class="cols wide">
@@ -1041,6 +1102,7 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
     </div>
     <div class="txt">
       <p class="q">왜 한 모델을 CUDA 커널, libspconv, TensorRT 세 가지로 나눠 돌리나?</p>
+      <p class="idea">주방의 분업. 재료 손질(복셀화), 특수 조리(희소 3D), 일반 조리(2D 신경망), 담기(후처리)를 각각 가장 잘하는 도구에 맡긴다.</p>
       <div class="frag" data-s="1"><p class="pt what"><b>단계마다 성격이 다르다.</b> 복셀화·후처리는 "데이터 정리"라 딱 맞는 CUDA 커널을 직접 짰다. 신경망 중 희소한 부분은 libspconv, 조밀한 2D 부분은 TensorRT.</p></div>
       <div class="frag" data-s="2"><p class="pt why"><b>왜 3D 백본은 TensorRT가 아닌가?</b> 희소 합성곱은 프레임마다 활성 칸과 rulebook이 바뀌는 "모양이 데이터에 따라 달라지는" 연산이다. TensorRT는 고정된 모양의 조밀한 텐서에 최적화되어 있어, 전용 엔진(libspconv)이 따로 필요하다.</p></div>
       <div class="frag" data-s="3"><p class="pt shape"><b>시간 (Orin, ms):</b> 3D 백본이 절반 이상. 복셀 수가 많은 복잡한 장면일수록 이 부분이 늘어난다. Neck+Head는 INT8로 11.3 → 7.0 ms.</p></div>
@@ -1067,7 +1129,7 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
   </div>
 </section>
 
-<!-- ============================ 22. 정리 ============================ -->
+<!-- ============================ 23. 정리 ============================ -->
 <section class="slide" id="s22" data-stage="" data-title="정리" data-steps="2">
   <header><span class="eyebrow">14 · 정리</span><h2>한 장으로 보는 CenterPoint</h2></header>
   <div style="display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
@@ -1125,7 +1187,7 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
   <div class="foot">
     <button type="button" id="prev" aria-label="이전">← 이전</button>
     <button type="button" id="next" class="primary" aria-label="다음">다음 →</button>
-    <span class="counter" id="counter">1 / 22</span>
+    <span class="counter" id="counter">1 / 23</span>
     <div class="dots" id="dots"></div>
     <div class="prog"><b id="progbar"></b></div>
     <span class="hint">N 노트 · T 목차</span>
@@ -1439,15 +1501,16 @@ function applyFade(o, v){
     else m.opacity = m.userData.base * v;
   }));
 }
+const lvl = on => typeof on === 'number' ? on : (on ? 1 : 0); // true/false or an opacity level 0..1
 function fade(d, obj, on){
   if (!obj.userData.faded){
     obj.userData.faded = true;
     obj.traverse(ch => mats(ch).forEach(m => { if (m.userData.base === undefined){ m.userData.base = m.opacity; m.transparent = true; } }));
-    obj.userData.cur = on ? 1 : 0;
+    obj.userData.cur = lvl(on);
     applyFade(obj, obj.userData.cur);
     d.fades.add(obj);
   }
-  obj.userData.goal = on ? 1 : 0;
+  obj.userData.goal = lvl(on);
 }
 function runFades(d, k){
   for (const o of d.fades){
@@ -2651,6 +2714,102 @@ D3.s18 = {
   },
   update(t){
     if (this.k === 3 && t - this.t0 > 900) this.cb.forEach((b, i) => { if (!CANDS[i].keep) fade(this, b, false); });
+  }
+};
+
+/* ============================================================
+   SEQ overview: the whole pipeline on one scene, one step per stage
+   ============================================================ */
+D3.seq = (function(){
+  const inR = p => Math.abs(p[0]) < 54 && Math.abs(p[1]) < 54;
+  function cellsOf(v, vz){
+    const m = new Map();
+    POINTS.forEach(p => { if (!inR(p)) return; const k = [Math.floor(p[0]/v), Math.floor(p[1]/v), Math.floor((p[2] - G)/vz)]; m.set(k.join(), k); });
+    return [...m.values()];
+  }
+  // extra_conv output: 0.6 m cells, two height layers (sensor z -5..-1 and -1..3 -> ground-relative 0..0.8, 0.8..4.8)
+  function layers(){
+    const L0 = new Map(), L1 = new Map(), cut = -1 - G;
+    POINTS.forEach(p => { if (!inR(p)) return; const k = [Math.floor(p[0]/.6), Math.floor(p[1]/.6)], z = p[2] - G; (z < cut ? L0 : L1).set(k.join(), k); });
+    return {L0:[...L0.values()], L1:[...L1.values()], cut};
+  }
+  return {
+    host:'#v3-seq', cam:{r:70, phi:.9, theta:.55, tx:0, ty:0, tz:0}, spinRate:.02,
+    build(S){
+      lights(S);
+      const B = BEVG(), teal = tok('--teal'), heat = tok('--heat'), vio = tok('--violet'), ink = tok('--ink');
+      this.cloud = points(cloudList(), .1); S.add(this.cloud); S.add(ego());
+      // 1 voxels (drawn 0.3 m instead of 0.075 m)
+      this.vox = inst(cellsOf(.3, .3).map(([i,j,k]) => [(i+.5)*.3, (k+.5)*.3, -(j+.5)*.3, .27, .27, .27]), teal, 1); S.add(this.vox);
+      // 2 sparse backbone output: 1/8 resolution, height squeezed to two layers
+      const Ly = layers(), top = 4.8;
+      this.bb = new THREE.Group();
+      this.bb.add(inst(Ly.L0.map(([i,j]) => [(i+.5)*.6, Ly.cut/2, -(j+.5)*.6, .54, Ly.cut*.96, .54]), teal, 1));
+      this.bb.add(inst(Ly.L1.map(([i,j]) => [(i+.5)*.6, (Ly.cut + top)/2, -(j+.5)*.6, .54, (top - Ly.cut)*.98, .54]), vio, .45));
+      S.add(this.bb); this.bbY = 1;
+      // 3 BEV plate, 4 Neck plate (tops at ground level)
+      const mk = (t, arr, c) => { const side = new THREE.MeshLambertMaterial({color:c, transparent:true, opacity:.55}); const m = new THREE.Mesh(new THREE.BoxGeometry(108, t, 108), [side, side, new THREE.MeshLambertMaterial({map:bevTex(arr, 180, c)}), side, side, side]); m.position.y = -t/2; return m; };
+      this.bev = mk(.6, B.occ, vio); S.add(this.bev);
+      this.neck = mk(1.4, B.mix, vio); S.add(this.neck);
+      // 5 heatmap terrain (max over the six task maps)
+      const n = 180, P = new Float32Array(n*n*3), Cc = new Float32Array(n*n*3), idx = [];
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++){ const i = r*n + c; P[i*3] = (c + .5)*.6 - 54; P[i*3+2] = -((r + .5)*.6 - 54); }
+      for (let r = 0; r < n-1; r++) for (let c = 0; c < n-1; c++){ const a = r*n+c, b = a+1, d = a+n, e = d+1; idx.push(a, d, b, b, d, e); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('color', new THREE.BufferAttribute(Cc, 3)); g.setIndex(idx);
+      this.hm = new Float32Array(n*n); HEAT.forEach(m => { for (let i = 0; i < n*n; i++) this.hm[i] = Math.max(this.hm[i], m[i]); });
+      this.geo = g; this.terr = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide, transparent:true, opacity:1})); this.terr.position.y = .04; S.add(this.terr);
+      this.base = col3('--panel2'); this.hc = col3('--heat'); this.grow = 0; this.growGoal = 0; this.setH();
+      // 6 candidate boxes decoded at every cell above 0.1
+      this.cb = new THREE.Group();
+      CANDS.forEach(c => { const l = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(c.l, 1.5, c.w)), new THREE.LineBasicMaterial({color:heat, transparent:true, opacity:.35 + .6*c.score})); l.position.set(c.x, .75, -c.y); l.rotation.y = c.yaw; this.cb.add(l); });
+      S.add(this.cb);
+      // 7 final boxes with velocity
+      this.fin = new THREE.Group();
+      CANDS.forEach(c => {
+        if (!c.keep) return;
+        this.fin.add(box3({x:c.x, y:c.y, yaw:c.yaw, l:c.l, w:c.w, h:1.6}, heat, .22));
+        this.fin.add(label(`${c.cls} ${c.score.toFixed(2)}`, {pos:new THREE.Vector3(c.x, 2.8, -c.y), size:.8}));
+        const v = OBJS[c.oi].v, sp = Math.hypot(v[0], v[1]);
+        if (sp > .5) this.fin.add(arrow(T3(c.x, c.y, 1.8), T3(c.x + v[0]*.6, c.y + v[1]*.6, 1.8), ink, .6, .35));
+      });
+      S.add(this.fin);
+      [this.vox, this.bb, this.bev, this.neck, this.terr, this.cb, this.fin].forEach(o => fade(this, o, false));
+    },
+    setH(){
+      const n = 180, P = this.geo.attributes.position.array, Cc = this.geo.attributes.color.array, c = new THREE.Color();
+      for (let i = 0; i < n*n; i++){
+        const v = this.hm[i]; P[i*3+1] = v * 4 * this.grow;
+        c.copy(this.base).lerp(this.hc, Math.min(1, Math.pow(v, .7) * 1.15 * Math.max(this.grow, .001)));
+        Cc[i*3] = c.r; Cc[i*3+1] = c.g; Cc[i*3+2] = c.b;
+      }
+      this.geo.attributes.position.needsUpdate = true; this.geo.attributes.color.needsUpdate = true; this.geo.computeVertexNormals();
+    },
+    step(k){
+      fade(this, this.cloud, k === 0 || k === 7 ? 1 : k === 1 || k === 2 ? .15 : k === 6 ? .3 : 0);
+      fade(this, this.vox, k === 1); fade(this, this.bb, k === 2 || k === 3); this.bbY = k >= 3 ? .02 : 1;
+      if (k === 3) setTimeout(() => { if (this.bbY < 1) fade(this, this.bb, false); }, reduced ? 0 : 700);
+      fade(this, this.bev, k === 3); fade(this, this.neck, k === 4 || k === 5);
+      fade(this, this.terr, k === 5 ? 1 : k === 6 ? .35 : 0); this.growGoal = k >= 5 ? 1 : 0;
+      fade(this, this.cb, k === 6); fade(this, this.fin, k === 7);
+      V3.view([
+        {r:70, phi:.9, tx:0, ty:0, tz:0}, {r:34, phi:.78, tx:6, ty:0, tz:-3}, {r:38, phi:.78, tx:6, ty:1, tz:-3},
+        {r:86, phi:.72, tx:0, ty:0, tz:0}, {r:86, phi:.72, tx:0, ty:0, tz:0}, {r:60, phi:.8, tx:2, ty:0, tz:-2},
+        {r:42, phi:.8, tx:4, ty:0, tz:-2}, {r:52, phi:.85, tx:2, ty:0, tz:-2}
+      ][k]);
+    },
+    update(t, dt){
+      const a = reduced ? 1 : 1 - Math.exp(-dt * 2.4);
+      this.bb.scale.y += (this.bbY - this.bb.scale.y) * a;
+      if (Math.abs(this.grow - this.growGoal) > .002){ this.grow += (this.growGoal - this.grow) * a; this.setH(); }
+    }
+  };
+})();
+hooks.seq = {
+  step(k){
+    const li = $$('#seqlist li');
+    li.forEach((e, i) => { e.classList.toggle('on', i === k); e.classList.toggle('done', i < k); });
+    const b = li[k] && li[k].querySelector('b'), c = li[k] && li[k].querySelector('code');
+    $('#seqcap').textContent = `${k + 1} / ${li.length} · ${b ? b.textContent : ''}  ${c ? c.textContent : ''}`;
   }
 };
 

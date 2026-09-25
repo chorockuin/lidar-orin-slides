@@ -4,7 +4,7 @@ NVIDIA Jetson AGX Orin에서 동작하는 LiDAR 3D 객체 검출 모델을, 입�
 
 | 폴더 | 모델 | 상태 |
 |---|---|---|
-| [`centerpoint/`](centerpoint/) | NVIDIA [CUDA-CenterPoint](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-CenterPoint) (nuScenes) | 슬라이드 22장 완성 |
-| [`pointpillars/`](pointpillars/) | NVIDIA [CUDA-PointPillars](https://github.com/NVIDIA-AI-IOT/CUDA-PointPillars) (KITTI) | 슬라이드 22장 완성 |
+| [`centerpoint/`](centerpoint/) | NVIDIA [CUDA-CenterPoint](https://github.com/NVIDIA-AI-IOT/Lidar_AI_Solution/tree/master/CUDA-CenterPoint) (nuScenes) | 슬라이드 23장 완성 (3D 시각화) |
+| [`pointpillars/`](pointpillars/) | NVIDIA [CUDA-PointPillars](https://github.com/NVIDIA-AI-IOT/CUDA-PointPillars) (KITTI) | 슬라이드 23장 완성 (3D 시각화) |
 
 각 폴더에는 `requirements.md`(요구사항 정의서), `index.html`(웹 슬라이드), `src/`(슬라이드 원본과 빌드 스크립트)가 같은 구성으로 들어갑니다.
