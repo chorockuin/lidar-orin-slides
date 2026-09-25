@@ -98,6 +98,16 @@ canvas{display:block;max-width:100%}
 .impl::before{content:"ORIN 구현";font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--violet);margin-right:8px;font-weight:600}
 .impl code{font-size:11.5px}
 
+/* 3D views */
+.v3{position:relative;flex:1;min-height:0;border:1px solid var(--line);border-radius:5px;background:radial-gradient(ellipse at 50% 35%,var(--panel) 0%,var(--bg) 80%);overflow:hidden;cursor:grab;touch-action:none}
+.v3:active{cursor:grabbing}
+.v3 canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block}
+.v3::after{content:"드래그: 회전 · 휠: 확대 · R: 시점 초기화";position:absolute;right:8px;bottom:6px;font-size:10.5px;color:var(--muted);pointer-events:none;font-family:var(--mono)}
+.v3.bare{border:0;background:transparent;cursor:default}
+.v3.bare::after{display:none}
+.v3err{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:16px;text-align:center}
+.strip-on{border-color:var(--heat)!important;background:var(--heat-soft)!important;color:var(--heat)}
+
 /* fragments */
 .frag{opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease;pointer-events:none}
 .frag.on{opacity:1;transform:none;pointer-events:auto}
@@ -181,7 +191,7 @@ svg .mv{transition:transform .9s cubic-bezier(.6,.05,.3,1),opacity .5s}
 .title-wrap .lede{font-size:19px;color:var(--muted);max-width:30ch;margin:0}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;color:var(--muted)}
 .keys kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 6px;background:var(--bg);color:var(--ink);justify-self:start}
-#cv-title{position:absolute;right:0;top:0;width:760px;height:100%}
+#v3-s1{position:absolute;right:0;top:0;width:820px;height:100%}
 
 /* narrow screens: flow mode */
 body.flow #viewport{place-items:start stretch;overflow:auto}
@@ -192,10 +202,10 @@ body.flow .slide h2{font-size:22px}
 body.flow .slide header{flex-direction:column;gap:2px}
 body.flow .title-wrap{position:relative;left:auto;width:100%;padding-block:10px}
 body.flow .title-wrap h1{font-size:36px}
-body.flow #cv-title{position:relative;width:100%;height:260px}
+body.flow #v3-s1{position:relative;width:100%;height:300px}
 body.flow .hint,body.flow .brand small{display:none}
 body.flow .cv{min-height:280px}
 body.flow .gloss{grid-template-columns:1fr 1fr}
-body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
+body.flow .v3{min-height:320px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>

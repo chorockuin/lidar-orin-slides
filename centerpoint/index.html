@@ -103,6 +103,16 @@ canvas{display:block;max-width:100%}
 .impl::before{content:"ORIN 구현";font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--violet);margin-right:8px;font-weight:600}
 .impl code{font-size:11.5px}
 
+/* 3D views */
+.v3{position:relative;flex:1;min-height:0;border:1px solid var(--line);border-radius:5px;background:radial-gradient(ellipse at 50% 35%,var(--panel) 0%,var(--bg) 80%);overflow:hidden;cursor:grab;touch-action:none}
+.v3:active{cursor:grabbing}
+.v3 canvas{position:absolute;inset:0;width:100%!important;height:100%!important;display:block}
+.v3::after{content:"드래그: 회전 · 휠: 확대 · R: 시점 초기화";position:absolute;right:8px;bottom:6px;font-size:10.5px;color:var(--muted);pointer-events:none;font-family:var(--mono)}
+.v3.bare{border:0;background:transparent;cursor:default}
+.v3.bare::after{display:none}
+.v3err{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;padding:16px;text-align:center}
+.strip-on{border-color:var(--heat)!important;background:var(--heat-soft)!important;color:var(--heat)}
+
 /* fragments */
 .frag{opacity:0;transform:translateY(6px);transition:opacity .45s ease,transform .45s ease;pointer-events:none}
 .frag.on{opacity:1;transform:none;pointer-events:auto}
@@ -186,7 +196,7 @@ svg .mv{transition:transform .9s cubic-bezier(.6,.05,.3,1),opacity .5s}
 .title-wrap .lede{font-size:19px;color:var(--muted);max-width:30ch;margin:0}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;color:var(--muted)}
 .keys kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 6px;background:var(--bg);color:var(--ink);justify-self:start}
-#cv-title{position:absolute;right:0;top:0;width:760px;height:100%}
+#v3-s1{position:absolute;right:0;top:0;width:820px;height:100%}
 
 /* narrow screens: flow mode */
 body.flow #viewport{place-items:start stretch;overflow:auto}
@@ -197,11 +207,11 @@ body.flow .slide h2{font-size:22px}
 body.flow .slide header{flex-direction:column;gap:2px}
 body.flow .title-wrap{position:relative;left:auto;width:100%;padding-block:10px}
 body.flow .title-wrap h1{font-size:36px}
-body.flow #cv-title{position:relative;width:100%;height:260px}
+body.flow #v3-s1{position:relative;width:100%;height:300px}
 body.flow .hint,body.flow .brand small{display:none}
 body.flow .cv{min-height:280px}
 body.flow .gloss{grid-template-columns:1fr 1fr}
-body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
+body.flow .v3{min-height:320px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -229,7 +239,7 @@ body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
 
 <!-- ============================ 1. 표지 ============================ -->
 <section class="slide" id="s1" data-stage="" data-title="표지" data-steps="1">
-  <canvas id="cv-title" width="1520" height="1440" aria-label="LiDAR 스캔 애니메이션"></canvas>
+  <div id="v3-s1" class="v3 bare" aria-label="LiDAR 스캔 3D 애니메이션"></div>
   <div class="title-wrap">
     <div class="eyebrow">NVIDIA CUDA-CenterPoint · Jetson AGX Orin</div>
     <h1>점 구름에서<br>3D 박스까지,<br><em>CenterPoint</em></h1>
@@ -254,7 +264,7 @@ body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
   <header><span class="eyebrow">01 · 문제</span><h2>점 구름에서 "물체"를 찾는다는 것</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s2" width="1400" height="1100" aria-label="위에서 본 가상 LiDAR 포인트 클라우드"></canvas>
+      <div class="v3" id="v3-s2" aria-label="가상 LiDAR 포인트 클라우드 3D 보기"></div>
       <div class="legend"><span><i style="background:#3b6fd0"></i>낮은 점</span><span><i style="background:#2bb3a8"></i>중간</span><span><i style="background:#f0a040"></i>높은 점</span><span class="frag" data-s="2"><i style="border:1.5px solid currentColor;background:none"></i>정답 박스</span></div>
     </div>
     <div class="txt">
@@ -396,7 +406,7 @@ body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
   <header><span class="eyebrow">04 · 입력</span><h2>점 하나에 담긴 5개 숫자, 그리고 시간</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s5" width="1400" height="1100" aria-label="여러 sweep이 누적된 움직이는 차"></canvas>
+      <div class="v3" id="v3-s5" aria-label="여러 sweep이 누적된 움직이는 차 3D 보기"></div>
       <div class="legend" id="s5legend"><span><i style="background:var(--heat)"></i>현재 sweep (Δt = 0)</span><span class="frag" data-s="4"><i style="background:var(--violet)"></i>과거 sweep (Δt 최대 ≈ 0.45 s)</span></div>
     </div>
     <div class="txt">
@@ -430,22 +440,7 @@ body.flow #cv-s14{width:100%!important;height:auto!important;aspect-ratio:1/1}
   <header><span class="eyebrow">05 · 복셀화</span><h2>흩어진 점을 모눈종이 위에 올린다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg viewBox="0 0 660 470" role="img" aria-label="복셀 격자 확대도">
-        <text x="60" y="18" class="mono mut">12.000 m</text>
-        <text x="620" y="18" class="mono mut" text-anchor="end">12.750 m</text>
-        <g id="s6grid"></g>
-        <g id="s6pts"></g>
-        <g class="frag" data-s="3">
-          <rect x="284" y="198" width="56" height="56" class="f-heat-s s-heat" stroke-width="2.5"/>
-          <path d="M313.9 242.8V422" class="s-heat" stroke-dasharray="4 4"/>
-          <path d="M313.9 242.8H60" class="s-heat" stroke-dasharray="4 4"/>
-          <rect x="348" y="150" width="190" height="40" rx="4" class="f-panel s-heat"/>
-          <text x="358" y="175" class="mono heat" style="font-size:14px;font-weight:600">(ix, iy, iz) = (884, 677, 27)</text>
-        </g>
-        <circle cx="313.9" cy="242.8" r="6" class="f-rose"/>
-        <text x="322" y="238" class="rose mono" style="font-size:11px">p</text>
-        <text x="340" y="462" class="mut" text-anchor="middle" style="font-size:12px">x 방향 칸 번호 ix  (1칸 = 0.075 m)</text>
-      </svg>
+      <div class="v3" id="v3-s6" aria-label="점이 3D 복셀 격자에 담기는 모습"></div>
     </div>
     <div class="txt">
       <p class="q">CNN은 규칙적인 격자(이미지) 위에서만 동작한다. 좌표가 제각각인 점들을 어떻게 격자로 바꾸나?</p>
@@ -478,6 +473,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
   <header><span class="eyebrow">05 · 복셀화</span><h2>한 칸을 숫자 5개로 요약하고, 빈칸은 버린다</h2></header>
   <div class="cols">
     <div class="vis">
+      <div class="v3" id="v3-s7" style="flex:none;height:220px" aria-label="복셀 하나 확대"></div>
       <div class="box">
         <p class="small muted" style="margin:0 0 6px">복셀 (884, 677, 27) 에 들어간 점 4개</p>
         <div class="mat-wrap">
@@ -496,7 +492,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
           </div>
         </div>
       </div>
-      <div class="frag" data-s="5">
+      <div class="frag" data-s="5" data-u="6">
         <div class="box" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
           <div><div class="mat" style="grid-template-columns:repeat(5,auto)"><span>…</span><span>…</span><span>…</span><span>…</span><span>…</span></div><div class="mat-label">features [V, 5] fp16</div></div>
           <div><div class="mat" style="grid-template-columns:repeat(4,auto)"><span>0</span><span>27</span><span>677</span><span>884</span></div><div class="mat-label">indices [V, 4] int32 (b, z, y, x)</div></div>
@@ -535,8 +531,8 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
   <div class="cols">
     <div class="vis">
       <div class="btnrow" aria-hidden="true" style="pointer-events:none"><span class="chip" id="s8mode">입력</span><span class="chip heat" id="s8count">계산 위치 0</span></div>
-      <svg id="s8svg" viewBox="0 0 520 520" role="img" aria-label="희소 격자 위 합성곱 비교" style="flex:1;min-height:0"></svg>
-      <div class="legend"><span><i style="background:var(--teal)"></i>값이 있는 칸 (입력)</span><span><i style="background:var(--heat)"></i>출력이 계산되는 칸</span><span><i style="border:2px solid var(--ink);background:none"></i>3×3 커널</span></div>
+      <div class="v3" id="v3-s8" aria-label="3D 복셀 위 합성곱 비교"></div>
+      <div class="legend"><span><i style="background:var(--teal)"></i>값이 있는 칸 (입력)</span><span><i style="background:var(--heat)"></i>출력이 계산되는 칸</span><span><i style="border:2px solid var(--ink);background:none"></i>3×3×3 커널</span></div>
     </div>
     <div class="txt">
       <p class="q">칸 대부분이 비어 있는 격자에 보통 합성곱을 하면 어떻게 되나? 빈칸을 건너뛸 수 있나?</p>
@@ -557,7 +553,7 @@ iz = ⌊(0.57 + 5) / 0.2⌋     = ⌊27.85⌋  = <span class="hl">27</span></div
     <p><b>Submanifold sparse conv</b>(Graham et al., 2018)는 출력 위치를 "입력 활성 칸과 같은 곳"으로 고정합니다. LiDAR 점은 물체 표면(2D 곡면 = manifold)에만 있는데, 일반 sparse conv를 여러 번 하면 이 얇은 표면이 두꺼워져 계산이 늘어납니다. SubM은 표면 두께를 유지합니다.</p>
     <p><b>그럼 SubM만 쓰면?</b> 서로 떨어진 표면 조각은 영원히 정보를 주고받지 못합니다. 그래서 스테이지 사이마다 stride-2 sparse conv로 해상도를 줄이며 주변 칸을 합칩니다. 해상도가 절반이 되면 3×3 커널이 원래 격자 기준으로 두 배 넓은 범위를 봅니다.</p>
     <p>CenterPoint의 SpMiddleResNetFHD는 SubM 합성곱 17개와 stride-2 sparse conv 4개, 총 21개 합성곱으로 이루어집니다(ONNX 그래프 기준).</p>
-    <p>왼쪽 그림은 개념을 보이려고 활성 칸 비율을 약 10%로 과장했습니다. 실제는 0.13%라 절약 효과가 훨씬 큽니다.</p>
+    <p>왼쪽 3D 그림은 물체 표면의 복셀을 크게 과장해 그린 개념도입니다. 실제 활성 비율은 0.13%라 절약 효과가 훨씬 큽니다. 드래그로 돌려 보면 Sparse conv에서 표면이 "두꺼워지는" 모습과 SubM에서 그대로인 모습을 입체로 비교할 수 있습니다.</p>
   </div>
 </section>
 
@@ -638,7 +634,9 @@ W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
   <header><span class="eyebrow">06 · 3D Sparse 백본</span><h2>해상도는 줄이고, 채널은 늘린다</h2></header>
   <div class="cols wide">
     <div class="vis">
-      <svg id="s10svg" viewBox="0 0 800 470" role="img" aria-label="3D 백본 스테이지별 텐서 모양"></svg>
+      <div class="v3" id="v3-s10" aria-label="해상도별로 복셀화된 차와 보행자"></div>
+      <div class="btnrow" id="s10strip" aria-hidden="true" style="pointer-events:none"></div>
+      <svg id="s10svg" viewBox="0 0 800 64" class="frag" data-s="7" style="flex:none" role="img" aria-label="잔차 블록"></svg>
     </div>
     <div class="txt">
       <p class="q">왜 격자를 점점 작게 만들고, 칸마다 숫자(채널)는 점점 많게 만드나?</p>
@@ -666,7 +664,7 @@ W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
     <p><b>출력 크기 계산:</b> <code>out = ⌊(in + 2·pad − k) / s⌋ + 1</code>. 예: z 41 → ⌊(41+2−3)/2⌋+1 = 21 → 11 → (11−3)/2+1 = 5 (패딩 0) → (5−3)/2+1 = 2.</p>
     <p><b>왜 채널을 두 배로?</b> 3D에서 해상도를 절반으로 줄이면 칸 수가 1/8이 됩니다. 채널을 2배로 늘려도 층당 계산량(칸 수 × C_in × C_out)은 1/8 × 4 = 1/2로 오히려 줄어듭니다. 깊은 층일수록 "넓은 범위, 풍부한 표현, 적은 칸"이 됩니다. 희소 격자에서는 활성 칸 수가 해상도만큼 줄지 않을 수 있지만 원리는 같습니다.</p>
     <p><b>잔차 연결</b>은 층을 많이 쌓아도 기울기(gradient)가 입력 쪽까지 잘 전달되게 합니다. 블록이 "입력을 조금만 고치면 되는" 문제를 풀게 되어 학습이 안정됩니다.</p>
-    <p>그림에서 사각형 크기는 가로세로 해상도, 두께는 채널 수를 나타냅니다. 크기는 로그 눈금이라 실제 비율과 다릅니다.</p>
+    <p>왼쪽 3D 그림은 같은 차와 보행자를 각 스테이지의 칸 크기로 복셀화한 모습입니다(가상 데이터). 단계가 깊어질수록 칸이 커져 모양이 뭉툭해지고, 옆의 막대(칸 하나의 특징 벡터 길이 = 채널 수)는 길어집니다. "해상도를 잃는 대신 칸마다 더 풍부한 설명을 붙인다"는 교환을 눈으로 확인하세요. z 방향 칸 높이는 근사값입니다.</p>
   </div>
 </section>
 
@@ -675,7 +673,8 @@ W_k: 오프셋마다 다른 [C_in × C_out] 행렬</span></div>
   <header><span class="eyebrow">07 · BEV</span><h2>높이를 채널로 눕혀, 위에서 본 지도로</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s11svg" viewBox="0 0 700 470" role="img" aria-label="높이 축을 채널로 펼치는 과정"></svg>
+      <div class="v3" id="v3-s11" aria-label="높이 2층이 합쳐지는 BEV 3D 보기"></div>
+      <svg id="s11svg" viewBox="0 0 700 180" style="flex:none" role="img" aria-label="채널 순서가 섞이는 방식"></svg>
     </div>
     <div class="txt">
       <p class="q">3D 특징 <code>[128, 2, 180, 180]</code>을 왜, 어떻게 2D 지도로 바꾸나?</p>
@@ -696,7 +695,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
     <p><b>채널 순서 주의.</b> 메모리가 [C, D, H, W] 순서이므로 합친 채널 번호는 <code>c·D + d</code>입니다. 즉 z0/z1이 "앞 128, 뒤 128"로 붙는 것이 아니라 <b>c0z0, c0z1, c1z0, c1z1, …</b>처럼 번갈아 놓입니다. 그림의 애니메이션이 이 순서를 보여 줍니다. 신경망은 학습 때도 같은 순서를 봤으므로 결과에는 문제가 없습니다.</p>
     <p><b>왜 이렇게 해도 정보가 남나?</b> 3D 백본이 이미 높이 방향 이웃을 합성곱으로 섞으며 "이 위치의 높이 구조"를 채널에 기록해 두었습니다. 높이 2칸 × 128채널에는 "바닥부터 어디까지 점이 있는가, 지붕 모양은 어떤가" 같은 정보가 요약되어 있습니다.</p>
     <p><b>BEV 격자:</b> 180 × 180칸, 한 칸 = 0.075 × 8 = 0.6 m, 108 m × 108 m를 덮습니다. 이 "×8"(<code>out_size_factor = 8</code>)이 뒤에서 박스 좌표를 미터로 되돌릴 때 쓰입니다.</p>
-    <p>그림 왼쪽 판은 BEV 격자, 표시된 한 칸 위의 기둥이 그 칸의 특징 벡터입니다. 128채널을 8개 칸으로 줄여 그렸습니다.</p>
+    <p>위쪽 3D 그림은 차와 보행자 주변 BEV 칸들의 두 높이 층(z=0, z=1)입니다. 합쳐지는 단계에서 위층이 내려와 한 칸의 기둥이 됩니다. 아래 막대는 그 기둥의 채널이 어떤 순서로 한 줄이 되는지 보여 줍니다(128채널을 8개로 줄여 표시).</p>
   </div>
 </section>
 
@@ -705,50 +704,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <header><span class="eyebrow">08 · Neck (RPN)</span><h2>가까이 보는 눈과 멀리 보는 눈을 합친다</h2></header>
   <div class="cols wide">
     <div class="vis">
-      <svg viewBox="0 0 820 440" role="img" aria-label="RPN 두 갈래 구조">
-        <g class="frag" data-s="0" id="s12in">
-          <rect x="10" y="175" width="110" height="80" rx="4" class="f-violet-s s-violet"/>
-          <text x="65" y="205" text-anchor="middle" style="font-weight:700">BEV 입력</text>
-          <text x="65" y="225" text-anchor="middle" class="mono">256×180²</text>
-        </g>
-        <g class="frag" data-s="2">
-          <path d="M120 215H160" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <rect x="162" y="60" width="210" height="96" rx="4" class="f-teal-s s-teal"/>
-          <text x="267" y="84" text-anchor="middle" style="font-weight:700">Block 0 (세밀한 눈)</text>
-          <text x="267" y="104" text-anchor="middle" class="mono">Conv3×3 256→128</text>
-          <text x="267" y="120" text-anchor="middle" class="mono">+ Conv3×3 128→128 ×5</text>
-          <text x="267" y="143" text-anchor="middle" class="mono teal">128×180²</text>
-          <path d="M140 215V108H160" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <path d="M372 108H452" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <rect x="454" y="78" width="150" height="60" rx="4" class="f-teal-s s-teal"/>
-          <text x="529" y="102" text-anchor="middle" class="mono">Conv1×1 128→256</text>
-          <text x="529" y="124" text-anchor="middle" class="mono teal">256×180²</text>
-        </g>
-        <g class="frag" data-s="3">
-          <path d="M267 156V250" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <rect x="162" y="252" width="210" height="110" rx="4" class="f-heat-s s-heat"/>
-          <text x="267" y="276" text-anchor="middle" style="font-weight:700">Block 1 (넓은 눈)</text>
-          <text x="267" y="296" text-anchor="middle" class="mono">Conv3×3 128→256, stride 2</text>
-          <text x="267" y="312" text-anchor="middle" class="mono">+ Conv3×3 256→256 ×5</text>
-          <text x="267" y="349" text-anchor="middle" class="mono heat">256×90²</text>
-          <path d="M372 307H452" class="s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <rect x="454" y="277" width="150" height="60" rx="4" class="f-heat-s s-heat"/>
-          <text x="529" y="301" text-anchor="middle" class="mono">Deconv 2×2, s2</text>
-          <text x="529" y="323" text-anchor="middle" class="mono heat">256×180²</text>
-        </g>
-        <g class="frag" data-s="4">
-          <path d="M604 108H650V190" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <path d="M604 307H650V240" class="f-none s-ink" stroke-width="1.5" marker-end="url(#ah-ink)"/>
-          <rect x="630" y="192" width="180" height="46" rx="4" class="f-violet-s s-violet"/>
-          <text x="720" y="212" text-anchor="middle" style="font-weight:700">Concat</text>
-          <text x="720" y="229" text-anchor="middle" class="mono violet">512×180²</text>
-        </g>
-        <g class="frag" data-s="6">
-          <text x="162" y="400" class="mono teal" style="font-size:12px">Block0 경로 수용영역 ≈ 13칸 ≈ 7.8 m</text>
-          <text x="162" y="420" class="mono heat" style="font-size:12px">Block1 경로 수용영역 ≈ 35칸 ≈ 21 m</text>
-          <text x="530" y="420" class="mut" style="font-size:11px">(Neck만 계산, 1칸 = 0.6 m)</text>
-        </g>
-      </svg>
+      <div class="v3" id="v3-s12" aria-label="RPN 특징 지도 3D 보기"></div>
     </div>
     <div class="txt">
       <p class="q">0.7 m 보행자와 12 m 버스를 한 지도에서 동시에 잘 보려면?</p>
@@ -785,7 +741,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <header><span class="eyebrow">09 · CenterHead</span><h2>지도의 모든 칸에 같은 질문을 던진다</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s13svg" viewBox="0 0 720 470" role="img" aria-label="CenterHead 구조"></svg>
+      <div class="v3" id="v3-s13" aria-label="CenterHead 출력 채널 탑"></div>
     </div>
     <div class="txt">
       <p class="q">Neck이 만든 <code>[512, 180, 180]</code> 지도에서, 칸 하나는 무엇에 대답해야 하나?</p>
@@ -826,7 +782,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <div class="cols">
     <div class="vis">
       <div class="btnrow" id="s14btns" role="group" aria-label="task 선택"></div>
-      <canvas class="cv" id="cv-s14" width="1100" height="1100" aria-label="클래스 그룹별 heatmap" style="width:480px;height:480px;flex:none"></canvas>
+      <div class="v3" id="v3-s14" aria-label="heatmap 3D 지형"></div>
     </div>
     <div class="txt">
       <p class="q">"중심일 확률 지도"는 어떻게 생겼고, 왜 봉우리 모양인가?</p>
@@ -846,7 +802,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
     <p>각 task 그룹의 <code>hm</code> 출력은 <code>[1, 클래스 수, 180, 180]</code>입니다. 값에 sigmoid를 적용하면 칸 (y, x)가 해당 클래스 물체의 중심일 확률이 됩니다.</p>
     <p>이미지 검출의 CenterNet에서는 3×3 max-pooling으로 "주변보다 높은 칸"(local maximum)만 골라 봉우리 하나당 물체 하나로 봅니다. CenterPoint의 nuScenes 설정과 CUDA-CenterPoint는 max-pooling 대신 <b>점수 0.1 이상인 모든 칸</b>을 후보로 삼고, 겹치는 박스를 NMS로 정리합니다(18장).</p>
     <p><b>봉우리의 폭</b>은 물체 크기에 따라 다릅니다. 큰 물체는 조금 어긋나도 박스가 많이 겹치므로 봉우리가 넓고, 작은 물체는 좁습니다(16장 "가우시안 반지름").</p>
-    <p>왼쪽 지도는 가상 장면에 대해 봉우리 모양을 시각화한 것입니다(실제 모델 출력 아님). 108 m × 108 m 전체를 180×180칸으로 보여 줍니다. 가운데가 자차 위치입니다.</p>
+    <p>왼쪽 3D 지형은 가상 장면에 대해 봉우리 모양을 시각화한 것입니다(실제 모델 출력 아님). 108 m × 108 m 전체 180×180칸에서 높이 = 점수입니다. 반투명 판은 점수 0.1 기준선으로, 판을 뚫고 올라온 부분이 후보 칸입니다.</p>
     <p><b>해상도가 0.6 m라는 것의 의미.</b> 보행자 폭(약 0.7 m)이 한두 칸밖에 안 됩니다. 그래서 칸 번호만으로는 위치가 부정확하고, 칸 안의 정확한 위치를 <code>reg</code> 헤드가 따로 보정합니다(다음 장).</p>
   </div>
 </section>
@@ -856,7 +812,8 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <header><span class="eyebrow">09 · CenterHead</span><h2>중심 칸에서 박스를 읽어내는 법</h2></header>
   <div class="cols">
     <div class="vis">
-      <svg id="s15svg" viewBox="0 0 720 500" role="img" aria-label="오프셋, 크기, 방향, 속도 표현"></svg>
+      <div class="v3" id="v3-s15" aria-label="중심 칸에서 3D 박스 복원"></div>
+      <svg id="s15svg" viewBox="0 0 720 168" style="flex:none" role="img" aria-label="log 눈금과 sin/cos 표현"></svg>
     </div>
     <div class="txt">
       <p class="q">중심 칸을 찾았다. 그런데 칸은 0.6 m나 되는데, 정확한 박스는 어떻게 얻나? 그리고 왜 이런 형태로 예측하나?</p>
@@ -891,7 +848,7 @@ bev[c·2 + d, y, x] = vol[c, d, y, x]
   <header><span class="eyebrow">10 · 학습</span><h2>정답 heatmap은 이렇게 그린다</h2></header>
   <div class="cols even">
     <div class="vis">
-      <svg id="s16svg" viewBox="0 0 560 300" role="img" aria-label="정답 박스와 BEV 칸"></svg>
+      <div class="v3" id="v3-s16" aria-label="가우시안 정답 3D 막대"></div>
       <div class="frag" data-s="4" style="display:flex;gap:16px;align-items:flex-start">
         <table class="t" id="s16tab" style="width:auto"></table>
         <p class="small muted" style="margin:0">중심 칸 = 1.0, 반지름 2칸 안쪽만 값이 있다. 두 물체의 봉우리가 겹치면 큰 값(max)을 쓴다.</p>
@@ -973,7 +930,7 @@ r = max(⌊2.07⌋, 2) = <span class="hl">2</span>,  σ = (2r+1)/6 = 0.83</div><
   <header><span class="eyebrow">11 · 후처리</span><h2>봉우리에서 최종 박스 목록까지</h2></header>
   <div class="cols">
     <div class="vis">
-      <canvas class="cv" id="cv-s18" width="1400" height="1100" aria-label="후보 칸, 박스 디코딩, NMS"></canvas>
+      <div class="v3" id="v3-s18" aria-label="후보, 3D 박스, NMS"></div>
       <div class="legend"><span><i style="background:var(--heat)"></i>후보 / 남은 박스</span><span><i style="background:var(--rose)"></i>NMS로 지워지는 박스</span></div>
     </div>
     <div class="txt">
@@ -1176,6 +1133,7 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
     <button type="button" id="toc-btn">목차</button>
   </div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -1354,11 +1312,14 @@ function applyStep(){
   });
   const h = hooks[s.id];
   if (h && h.step) h.step(step);
+  const d = D3[s.id];
+  if (d){ V3.show(d); if (d.scene && d.step) d.step(step); }
   updateUI();
 }
 function go(i, k){
   if (i !== cur){
     const h = hooks[slides[cur].id]; if (h && h.leave) h.leave();
+    if (D3[slides[cur].id]) V3.hide();
     slides[cur].classList.remove('active');
     cur = i;
   }
@@ -1398,6 +1359,7 @@ $('#toc-btn').addEventListener('click', () => togglePanel('toc'));
 $('#notes-close').addEventListener('click', () => togglePanel('notes', false));
 $('#toc-close').addEventListener('click', () => togglePanel('toc', false));
 $('#stage').addEventListener('click', e => {
+  if (V3.takeDrag()) return;
   if (e.target.closest('button, a, input, select, .panel, table, .btnrow')) return;
   if (window.getSelection && String(window.getSelection())) return;
   next();
@@ -1411,6 +1373,7 @@ document.addEventListener('keydown', e => {
   else if (k === 'End'){ go(slides.length-1, 0); }
   else if (k === 'n' || k === 'N'){ togglePanel('notes'); }
   else if (k === 't' || k === 'T'){ togglePanel('toc'); }
+  else if (k === 'r' || k === 'R'){ V3.home(); }
   else if (k === 'Escape'){ togglePanel('notes', false); togglePanel('toc', false); }
 });
 
@@ -1420,10 +1383,10 @@ $('#themebtn').addEventListener('click', () => {
   const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
   root.dataset.theme = dark ? 'light' : 'dark';
   try { localStorage.setItem('cp-theme', root.dataset.theme); } catch(e) {}
-  redraw();
+  redraw(); V3.retheme(step);
 });
 try { const t = localStorage.getItem('cp-theme'); if (t) document.documentElement.dataset.theme = t; } catch(e) {}
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => redraw());
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { redraw(); V3.retheme(step); });
 function redraw(){ const h = hooks[slides[cur].id]; if (h && h.step) h.step(step); }
 
 // scaling
@@ -1431,217 +1394,316 @@ const stage = $('#stage'), vp = $('#viewport');
 function fit(){
   const flow = window.innerWidth < 760;
   document.body.classList.toggle('flow', flow);
-  if (flow){ stage.style.transform = ''; stage.style.position = ''; stage.style.left = ''; stage.style.top = ''; }
+  if (flow){ stageScale = 1; stage.style.transform = ''; stage.style.position = ''; stage.style.left = ''; stage.style.top = ''; }
   else {
     const r = vp.getBoundingClientRect();
     const s = Math.min((r.width - 8) / 1280, (r.height - 16) / 720);
     stage.style.position = 'absolute'; stage.style.left = '50%'; stage.style.top = '50%';
     stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+    stageScale = s;
   }
+  V3.size();
   redraw();
 }
 window.addEventListener('resize', fit);
 
 /* ============================================================
-   S1 title: rotating LiDAR scan
+   3D engine: one shared Three.js renderer moved between slides
    ============================================================ */
-hooks.s1 = (function(){
-  let raf = 0, t0 = 0;
-  function frame(t){
-    const c = $('#cv-title'), P = prep(c); if (!P) return;
-    const {ctx, w, h} = P;
-    const R = 34, sc = Math.min(w, h) / (2*R) * 1.05, cx = w*0.55, cy = h/2;
-    const ang = reduced ? null : ((t - t0) / 2600) * Math.PI * 2;
-    ctx.fillStyle = tok('--panel'); ctx.fillRect(0,0,w,h);
-    for (const p of POINTS){
-      const X = cx + p[0]*sc, Y = cy - p[1]*sc;
-      if (X < 0 || Y < 0 || X > w || Y > h) continue;
-      let a = 1;
-      if (ang !== null){
-        let d = (ang - Math.atan2(p[1], p[0])) % (Math.PI*2); if (d < 0) d += Math.PI*2;
-        a = Math.max(.12, 1 - d / (Math.PI*2));
-      }
-      ctx.globalAlpha = a * (p[3] === 1 ? .55 : .95);
-      ctx.fillStyle = zColor(p[2]);
-      ctx.fillRect(X-.8, Y-.8, 1.6, 1.6);
+const HAS3 = typeof THREE !== 'undefined';
+const D3 = {};
+const PSCALE = {value: 400};
+let stageScale = 1;
+
+const VS = `
+attribute vec3 acol; attribute float aal;
+uniform float uSize; uniform float uScale; uniform float uSweep; uniform float uSweepOn;
+varying vec3 vC; varying float vA;
+void main(){
+  vC = acol; float a = aal;
+  if (uSweepOn > 0.5){ float ang = atan(-position.z, position.x); float d = mod(uSweep - ang, 6.2831853); a *= max(0.14, 1.0 - d / 6.2831853); }
+  vA = a;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = max(1.5, uSize * uScale / -mv.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+varying vec3 vC; varying float vA; uniform float uOp;
+void main(){ vec2 c = gl_PointCoord - 0.5; if (dot(c, c) > 0.25) discard; gl_FragColor = vec4(vC, vA * uOp); }`;
+
+function mats(o){ return o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; }
+function applyFade(o, v){
+  o.visible = v > 0.01;
+  o.traverse(ch => mats(ch).forEach(m => {
+    if (m.uniforms && m.uniforms.uOp) m.uniforms.uOp.value = v;
+    else m.opacity = m.userData.base * v;
+  }));
+}
+function fade(d, obj, on){
+  if (!obj.userData.faded){
+    obj.userData.faded = true;
+    obj.traverse(ch => mats(ch).forEach(m => { if (m.userData.base === undefined){ m.userData.base = m.opacity; m.transparent = true; } }));
+    obj.userData.cur = on ? 1 : 0;
+    applyFade(obj, obj.userData.cur);
+    d.fades.add(obj);
+  }
+  obj.userData.goal = on ? 1 : 0;
+}
+function runFades(d, k){
+  for (const o of d.fades){
+    const u = o.userData;
+    if (u.cur === u.goal) continue;
+    u.cur += (u.goal - u.cur) * k;
+    if (Math.abs(u.goal - u.cur) < 0.01) u.cur = u.goal;
+    applyFade(o, u.cur);
+  }
+}
+function disposeScene(S){
+  S.traverse(o => { if (o.geometry) o.geometry.dispose(); mats(o).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); });
+}
+
+const V3 = (function(){
+  let R = null, cam = null, def = null, host = null, raf = 0, last = 0, dragged = false, auto = true, home = null;
+  const ctl = {theta:.8, phi:1, r:30, tx:0, ty:0, tz:0}, goal = Object.assign({}, ctl);
+  function ensure(){
+    if (R) return true;
+    if (!HAS3) return false;
+    R = new THREE.WebGLRenderer({antialias:true, alpha:true});
+    R.setClearColor(0x000000, 0);
+    cam = new THREE.PerspectiveCamera(38, 1, 0.02, 900);
+    const el = R.domElement;
+    let down = null;
+    el.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY, th:goal.theta, ph:goal.phi, moved:false}; try { el.setPointerCapture(e.pointerId); } catch(_){} });
+    el.addEventListener('pointermove', e => {
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (Math.abs(dx) + Math.abs(dy) > 5) down.moved = true;
+      if (!down.moved) return;
+      auto = false;
+      goal.theta = ctl.theta = down.th - dx * 0.008 / stageScale;
+      goal.phi = ctl.phi = Math.max(0.1, Math.min(1.54, down.ph - dy * 0.006 / stageScale));
+    });
+    const up = () => { if (down && down.moved) dragged = true; down = null; };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', e => { e.preventDefault(); goal.r = Math.max(0.8, Math.min(300, goal.r * (1 + Math.sign(e.deltaY) * 0.1))); }, {passive:false});
+    return true;
+  }
+  function size(){
+    if (!R || !host) return;
+    const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return;
+    const pr = Math.min(2.5, (window.devicePixelRatio || 1) * Math.max(stageScale, .6));
+    R.setPixelRatio(pr); R.setSize(w, h, false);
+    cam.aspect = w / h; cam.updateProjectionMatrix();
+    PSCALE.value = h * pr / (2 * Math.tan(cam.fov * Math.PI / 360));
+  }
+  function loop(t){
+    if (!def) return;
+    const dt = Math.min(.05, (t - last) / 1000); last = t;
+    if (auto && !reduced && def.spin !== false) goal.theta += dt * (def.spinRate || 0.045);
+    const k = 1 - Math.exp(-dt * 3.2);
+    for (const p of ['theta','phi','r','tx','ty','tz']) ctl[p] += (goal[p] - ctl[p]) * k;
+    const sp = Math.sin(ctl.phi);
+    cam.position.set(ctl.tx + ctl.r*sp*Math.sin(ctl.theta), ctl.ty + ctl.r*Math.cos(ctl.phi), ctl.tz + ctl.r*sp*Math.cos(ctl.theta));
+    cam.lookAt(ctl.tx, ctl.ty, ctl.tz);
+    runFades(def, reduced ? 1 : Math.min(1, k * 1.6));
+    raf = requestAnimationFrame(loop);
+    if (def.update) def.update(t, dt);
+    R.render(def.scene, cam);
+  }
+  function show(d){
+    const h = $(d.host); if (!h) return;
+    if (!ensure()){
+      if (!h.querySelector('.v3err')) h.insertAdjacentHTML('beforeend', '<div class="v3err">3D 보기를 불러오지 못했습니다.<br>인터넷 연결을 확인하세요 (three.js, cdnjs).</div>');
+      return;
     }
-    ctx.globalAlpha = 1;
-    if (ang !== null){
-      ctx.strokeStyle = hexA(tok('--heat'), .5); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ang)*w, cy - Math.sin(ang)*w); ctx.stroke();
-    }
-    ctx.fillStyle = tok('--ink');
-    ctx.beginPath(); ctx.moveTo(cx+8, cy); ctx.lineTo(cx-6, cy-6); ctx.lineTo(cx-6, cy+6); ctx.closePath(); ctx.fill();
-    // fade toward text side
-    const g = ctx.createLinearGradient(0,0,w*0.45,0);
-    g.addColorStop(0, tok('--panel')); g.addColorStop(1, hexA(tok('--panel').startsWith('#') ? tok('--panel') : '#ffffff', 0));
-    ctx.fillStyle = g; ctx.fillRect(0,0,w*0.45,h);
-    if (!reduced && slides[cur].id === 's1') raf = requestAnimationFrame(frame);
+    if (def === d && host === h && R.domElement.parentNode === h) return;
+    host = h; def = d;
+    h.appendChild(R.domElement);
+    if (!d.scene){ d.scene = new THREE.Scene(); d.fades = new Set(); d.build(d.scene); }
+    home = Object.assign({theta:.8, phi:1, r:30, tx:0, ty:0, tz:0}, d.cam);
+    Object.assign(goal, home); Object.assign(ctl, home); auto = true;
+    size();
+    cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(loop);
   }
   return {
-    step(){ cancelAnimationFrame(raf); t0 = performance.now(); raf = requestAnimationFrame(frame); },
-    leave(){ cancelAnimationFrame(raf); }
+    show, size,
+    get def(){ return def; },
+    view(v){ Object.assign(goal, v); },
+    home(){ if (home){ Object.assign(goal, home); auto = true; } },
+    hide(){ cancelAnimationFrame(raf); if (R && R.domElement.parentNode) R.domElement.parentNode.removeChild(R.domElement); def = null; host = null; },
+    takeDrag(){ const d = dragged; dragged = false; return d; },
+    retheme(curStep){
+      const d = def;
+      for (const id in D3){ const x = D3[id]; if (x.scene){ disposeScene(x.scene); x.scene = null; } }
+      if (d){ def = null; show(d); if (d.scene && d.step) d.step(curStep); }
+    }
   };
 })();
 
-/* ============================================================
-   S2 problem: static cloud + boxes
-   ============================================================ */
-hooks.s2 = {
-  step(k){
-    const P = prep($('#cv-s2')); if (!P) return;
-    const {ctx, w, h} = P;
-    const m = drawCloud(ctx, w, h, 36);
-    if (k >= 1){
-      ctx.font = '600 12px ' + tok('--sans');
-      ctx.setLineDash([4,4]); ctx.strokeStyle = tok('--muted'); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(m.cx, m.cy, 8*m.sc, 0, Math.PI*2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(m.cx, m.cy, 30*m.sc, 0, Math.PI*2); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = tok('--ink');
-      ctx.fillText('가까움: 점이 빽빽', m.cx + 8*m.sc*0.72 + 4, m.cy - 8*m.sc*0.72);
-      ctx.fillText('멂: 점이 듬성듬성', m.cx + 30*m.sc*0.72 + 4, m.cy - 30*m.sc*0.72 + 14);
-    }
-    if (k >= 2){
-      for (const o of OBJS) strokeBox(ctx, o, m, tok('--ink'), 1.4);
-    }
-    if (k >= 3){
-      ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
-      const seen = new Set();
-      for (const o of OBJS){
-        if (o.cls === '방호벽' && seen.has('방호벽')) continue;
-        if (o.cls === '콘' && seen.has('콘')) continue;
-        seen.add(o.cls);
-        const X = m.cx + o.x*m.sc, Y = m.cy - o.y*m.sc;
-        if (X < 10 || X > w-40 || Y < 10 || Y > h-10) continue;
-        ctx.fillText(o.cls, X + 8, Y - Math.max(o.w,o.l)*m.sc/2 - 3);
+/* ---------- 3D building helpers ---------- */
+const T3 = (x, y, z) => new THREE.Vector3(x, z, -y);      // lidar-style (x fwd, y left, z up) -> three
+const col3 = n => new THREE.Color(tok(n));
+function lights(S){
+  S.add(new THREE.AmbientLight(0xffffff, .62));
+  const a = new THREE.DirectionalLight(0xffffff, .6); a.position.set(12, 25, 10); S.add(a);
+  const b = new THREE.DirectionalLight(0xffffff, .25); b.position.set(-14, 10, -12); S.add(b);
+}
+function points(list, size, sweep){
+  const n = list.length, P = new Float32Array(n*3), Cc = new Float32Array(n*3), A = new Float32Array(n);
+  list.forEach((q, i) => { P[i*3] = q[0]; P[i*3+1] = q[1]; P[i*3+2] = q[2]; Cc[i*3] = q[3]; Cc[i*3+1] = q[4]; Cc[i*3+2] = q[5]; A[i] = q[6]; });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  g.setAttribute('acol', new THREE.BufferAttribute(Cc, 3));
+  g.setAttribute('aal', new THREE.BufferAttribute(A, 1));
+  const m = new THREE.ShaderMaterial({uniforms:{uSize:{value:size}, uScale:PSCALE, uSweep:{value:0}, uSweepOn:{value: sweep ? 1 : 0}, uOp:{value:1}}, vertexShader:VS, fragmentShader:FS, transparent:true, depthWrite:false});
+  return new THREE.Points(g, m);
+}
+function cloudList(alphaK){
+  const k = alphaK === undefined ? 1 : alphaK, c = new THREE.Color();
+  return POINTS.map(p => { c.set(zColor(p[2])); return [p[0], p[2] - G, -p[1], c.r, c.g, c.b, (p[3] === 1 ? .5 : 1) * k]; });
+}
+function label(text, o = {}){
+  const fs = 56, cv = document.createElement('canvas'), x = cv.getContext('2d');
+  const font = `${o.bold ? 700 : 500} ${fs}px ${tok('--sans')}`;
+  x.font = font;
+  const padX = o.bg === false ? 6 : 26, tw = Math.ceil(x.measureText(text).width);
+  cv.width = tw + padX*2; cv.height = Math.round(fs * 1.55);
+  if (o.bg !== false){
+    const r = 16, w = cv.width, h = cv.height;
+    x.beginPath(); x.moveTo(r,0); x.lineTo(w-r,0); x.quadraticCurveTo(w,0,w,r); x.lineTo(w,h-r); x.quadraticCurveTo(w,h,w-r,h); x.lineTo(r,h); x.quadraticCurveTo(0,h,0,h-r); x.lineTo(0,r); x.quadraticCurveTo(0,0,r,0); x.closePath();
+    x.fillStyle = hexA(tok('--panel'), .9); x.fill();
+    x.lineWidth = 4; x.strokeStyle = o.color ? hexA(o.color, .75) : hexA(tok('--line'), 1); x.stroke();
+  }
+  x.font = font; x.textBaseline = 'middle'; x.fillStyle = o.color || tok('--ink');
+  x.fillText(text, padX, cv.height/2 + 2);
+  const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false}));
+  const h = o.size || .6; s.scale.set(h * cv.width / cv.height, h, 1);
+  s.renderOrder = 999;
+  if (o.pos) s.position.copy(o.pos);
+  return s;
+}
+function line(pts, color, o = {}){
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const m = o.dash ? new THREE.LineDashedMaterial({color, dashSize:o.dash, gapSize:o.dash*.7, transparent:true, opacity:o.op === undefined ? 1 : o.op})
+                   : new THREE.LineBasicMaterial({color, transparent:true, opacity:o.op === undefined ? 1 : o.op});
+  const l = new THREE.Line(g, m);
+  if (o.dash) l.computeLineDistances();
+  return l;
+}
+function ring(cx, y, cz, r, color, op, a0 = 0, a1 = Math.PI*2){
+  const p = [];
+  for (let i = 0; i <= 96; i++){ const a = a0 + (a1 - a0) * i / 96; p.push(new THREE.Vector3(cx + r*Math.cos(a), y, cz - r*Math.sin(a))); }
+  return line(p, color, {op});
+}
+function arrow(from, to, color, hl, hw){
+  const d = to.clone().sub(from), L = d.length();
+  return new THREE.ArrowHelper(d.normalize(), from, L, new THREE.Color(color), hl === undefined ? Math.min(L*.28, .7) : hl, hw === undefined ? Math.min(L*.16, .4) : hw);
+}
+function box3(o, color, op = .15, y0 = 0){
+  const g = new THREE.BoxGeometry(o.l, o.h, o.w), grp = new THREE.Group();
+  grp.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({color, transparent:true, opacity:op, depthWrite:false})));
+  grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({color, transparent:true, opacity:1})));
+  grp.position.set(o.x, y0 + o.h/2, -o.y); grp.rotation.y = o.yaw || 0;
+  return grp;
+}
+function inst(list, color, op = 1){
+  const g = new THREE.BoxGeometry(1, 1, 1);
+  const m = new THREE.MeshLambertMaterial({color, transparent: op < 1, opacity: op, depthWrite: op >= 1});
+  const im = new THREE.InstancedMesh(g, m, Math.max(1, list.length));
+  const M = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  list.forEach((a, i) => { p.set(a[0], a[1], a[2]); s.set(a[3], a[4], a[5]); M.compose(p, q, s); im.setMatrixAt(i, M); });
+  im.count = list.length; im.instanceMatrix.needsUpdate = true;
+  return im;
+}
+function wireBox(sx, sy, sz, color, op = 1){
+  return new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(sx, sy, sz)), new THREE.LineBasicMaterial({color, transparent:true, opacity:op}));
+}
+function ego(size = 1){
+  const g = new THREE.ConeGeometry(.45*size, 1.3*size, 20); g.rotateZ(-Math.PI/2);
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({color: col3('--ink')})); m.position.y = .5*size; return m;
+}
+function gridH(size, div, op){
+  const g = new THREE.GridHelper(size, div, col3('--grid'), col3('--grid'));
+  g.material.transparent = true; g.material.opacity = op; return g;
+}
+function sphere(r, color){ return new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshLambertMaterial({color})); }
+
+/* ---------- shared geometry data ---------- */
+// dense samples of a car (two boxes) and a pedestrian, local frame, ground z = 0
+const SHAPES = (function(){
+  const r = rng(31), car = [], ped = [];
+  function faces(x0, x1, y0, y1, z0, z1, dens, skipTop){
+    const F = [
+      [[x1,x1],[y0,y1],[z0,z1]], [[x0,x0],[y0,y1],[z0,z1]],
+      [[x0,x1],[y1,y1],[z0,z1]], [[x0,x1],[y0,y0],[z0,z1]]
+    ];
+    if (!skipTop) F.push([[x0,x1],[y0,y1],[z1,z1]]);
+    F.forEach(([X,Y,Z]) => {
+      const d = [X[1]-X[0], Y[1]-Y[0], Z[1]-Z[0]].filter(v => v > 0);
+      const n = Math.round(d[0] * d[1] * dens);
+      for (let i = 0; i < n; i++) car.push([X[0] + r()*(X[1]-X[0]), Y[0] + r()*(Y[1]-Y[0]), Z[0] + r()*(Z[1]-Z[0])]);
+    });
+  }
+  faces(-2.3, 2.3, -.95, .95, .3, 1.15, 300, false);
+  faces(-1.3, 1.0, -.85, .85, 1.15, 1.7, 300, false);
+  for (let i = 0; i < 1400; i++){ const a = r()*Math.PI*2, z = r()*1.55; ped.push([3.6 + .28*Math.cos(a), 2.2 + .28*Math.sin(a), z]); }
+  for (let i = 0; i < 250; i++){ const a = r()*Math.PI*2, b = r()*Math.PI; ped.push([3.6 + .13*Math.sin(b)*Math.cos(a), 2.2 + .13*Math.sin(b)*Math.sin(a), 1.62 + .13*Math.cos(b)]); }
+  return {car, ped, all: car.concat(ped)};
+})();
+function voxelize(pts, vx, vz){
+  const set = new Map();
+  for (const [x,y,z] of pts){
+    const i = Math.floor(x / vx), j = Math.floor(y / vx), k = Math.floor((z + 3.2) / vz);
+    set.set(i + ',' + j + ',' + k, [i, j, k]);
+  }
+  return [...set.values()];
+}
+// BEV occupancy textures (180 x 180) built from the virtual scene
+const BEVG = (function(){
+  let cache = null;
+  function blur(a, n, it){
+    let s = a;
+    for (let t = 0; t < it; t++){
+      const o = new Float32Array(n*n);
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++){
+        let sum = 0, c = 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++){ const X = x+dx, Y = y+dy; if (X<0||Y<0||X>=n||Y>=n) continue; sum += s[Y*n+X]; c++; }
+        o[y*n+x] = sum / c;
       }
+      s = o;
     }
+    let m = 0; for (const v of s) m = Math.max(m, v);
+    return s.map(v => v / (m || 1));
   }
-};
-
-/* ============================================================
-   S4 pipeline map
-   ============================================================ */
-hooks.s4 = {
-  init(){
-    const g = $('#s4nodes'), b = $('#s4bands');
-    const N = [
-      ['점 구름','[N, 5]','센서가 본 세상 그대로'],
-      ['복셀화','[V,5] + [V,4]','점을 격자 칸에 정리'],
-      ['3D Sparse 백본','[128,2,180,180]','빈칸 빼고 3D 모양 이해'],
-      ['BEV 변환','[256,180,180]','위에서 본 지도로 펴기'],
-      ['Neck','[512,180,180]','작은·큰 물체 문맥 결합'],
-      ['CenterHead','6 × [C,180,180]','칸마다 중심·속성 예측'],
-      ['디코드 + NMS','[K, 11]','박스로 복원, 중복 제거']
-    ];
-    N.forEach((n,i) => {
-      const x = 5 + i*172, grp = S('g', {class:'frag', 'data-s': i+1}, g);
-      S('rect', {x, y:20, width:150, height:128, rx:5, class: i===5 ? 'f-heat-s s-heat' : 'f-bg s-line', 'stroke-width':1.5}, grp);
-      S('text', {x:x+12, y:44, style:'font-size:11px', class:'mono mut'}, grp, '0' + (i+1));
-      S('text', {x:x+12, y:68, style:'font-weight:700;font-size:15px'}, grp, n[0]);
-      S('text', {x:x+12, y:92, class:'mono violet', style:'font-size:11.5px'}, grp, n[1]);
-      S('text', {x:x+12, y:128, style:'font-size:12.5px'}, grp, n[2]);
-      if (i < 6) S('path', {d:`M${x+151} 84H${x+170}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, grp);
-    });
-    const B = [
-      [0,0,'CPU · 입력','f-panel2','mut',''],
-      [1,1,'CUDA 커널','f-teal-s','teal','1.36 ms'],
-      [2,3,'libspconv','f-violet-s','violet','22.3 ms'],
-      [4,5,'TensorRT','f-heat-s','heat','11.3 ms'],
-      [6,6,'CUDA + CPU','f-teal-s','teal','4.4 ms']
-    ];
-    B.forEach(([a,z,l,f,tc,ms]) => {
-      const x = 5 + a*172, wd = (z-a)*172 + 150;
-      S('rect', {x, y:170, width:wd, height:34, rx:4, class:f}, b);
-      S('text', {x:x+10, y:192, class:tc, style:'font-weight:600'}, b, l);
-      if (ms) S('text', {x:x+wd-10, y:192, class:'mono ' + tc, 'text-anchor':'end'}, b, ms);
-    });
-    S('text', {x:5, y:236, class:'mut', style:'font-size:12px'}, b, 'Orin 평균 지연 합계 ≈ 40 ms (≈ 23~25 FPS) · 3D 백본이 절반 이상');
-  }
-};
-
-/* ============================================================
-   S5 multi-sweep
-   ============================================================ */
-hooks.s5 = (function(){
-  let raf = 0, anim0 = 0;
-  const r = rng(11), sweeps = [];
-  const sensor = [0, -9];
-  function carPts(cx, cy, n, rr){
-    const o = {x:cx, y:cy, yaw:0, w:1.9, l:4.5}, out = [];
-    const edges = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
-    let made = 0, guard = 0;
-    while (made < n && guard++ < n*8){
-      const e = edges[Math.floor(rr()*4)], f = rr();
-      const x = o.x + e[0][0] + (e[1][0]-e[0][0])*f, y = o.y + e[0][1] + (e[1][1]-e[0][1])*f;
-      if (e[2][0]*(x - sensor[0]) + e[2][1]*(y - sensor[1]) > 0) continue;
-      out.push([x + gauss(rr)*0.03, y + gauss(rr)*0.03]); made++;
-    }
-    return out;
-  }
-  for (let s = 0; s < 10; s++){
-    const dt = s * 0.05;
-    const pts = [];
-    carPts(1.5 - 8*dt, 0, 34, r).forEach(p => pts.push(p));
-    carPts(-3.5, 5.5, 22, r).forEach(p => pts.push(p));
-    for (let k = 0; k < 90; k++){ const x = -9 + r()*18, y = -2.5 + r()*12; if (Math.abs(y) < 1.3 && x > -4 && x < 4.5) continue; if (r() < .5) pts.push([x, y]); }
-    sweeps.push({dt, pts});
-  }
-  function draw(k, t){
-    const P = prep($('#cv-s5')); if (!P) return;
-    const {ctx, w, h} = P;
-    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
-    const sc = Math.min(w/20, h/15), cx = w/2, cy = h*0.62;
-    const heat = tok('--heat'), vio = tok('--violet');
-    let show = k >= 4 ? 10 : 1;
-    if (k === 4 && !reduced){ show = Math.min(10, 1 + Math.floor((t - anim0) / 140)); }
-    for (let s = show-1; s >= 0; s--){
-      const sw = sweeps[s];
-      ctx.fillStyle = s === 0 ? heat : lerpHex(heat.startsWith('#')?heat:'#f2a24a', vio.startsWith('#')?vio:'#9a96fa', Math.min(1, .35 + s/9*.65));
-      ctx.globalAlpha = s === 0 ? 1 : .85;
-      for (const p of sw.pts){ ctx.beginPath(); ctx.arc(cx + p[0]*sc, cy - p[1]*sc, 2.1, 0, Math.PI*2); ctx.fill(); }
-    }
-    ctx.globalAlpha = 1;
-    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--ink');
-    ctx.fillText('움직이는 차 (8 m/s →)', cx + 1.5*sc - 60, cy + 1.9*sc);
-    ctx.fillText('서 있는 차', cx - 3.5*sc - 28, cy - 5.5*sc - 1.6*sc);
-    if (k >= 5){
-      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(cx - 2.2*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc, cy + 1.35*sc); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx + 3.7*sc, cy + 1.35*sc); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc - 5); ctx.lineTo(cx + 3.7*sc - 8, cy + 1.35*sc + 5); ctx.closePath(); ctx.fillStyle = tok('--ink'); ctx.fill();
-      ctx.fillText('꼬리 길이 ≈ 속도 × 0.45 s', cx - 2.2*sc, cy + 2.6*sc);
-    }
-    ctx.fillStyle = tok('--muted');
-    ctx.fillText(k >= 4 ? '10 sweep 누적 (≈ 0.5 s)' : '1 sweep (현재)', 12, 20);
-    if (k === 4 && show < 10 && !reduced) raf = requestAnimationFrame(tt => draw(k, tt));
-  }
-  return {
-    step(k){ cancelAnimationFrame(raf); anim0 = performance.now(); draw(k, anim0); },
-    leave(){ cancelAnimationFrame(raf); }
+  return function(){
+    if (cache) return cache;
+    const n = 180, occ = new Float32Array(n*n);
+    for (const p of POINTS){ if (p[3] === 1) continue; const c = Math.floor((p[0]+54)/.6), r = Math.floor((p[1]+54)/.6); if (c<0||r<0||c>=n||r>=n) continue; occ[r*n+c] += 1; }
+    for (let i = 0; i < occ.length; i++) occ[i] = Math.min(1, occ[i] / 5);
+    const b1 = blur(occ, n, 1);
+    const dn = new Float32Array(90*90);
+    for (let r = 0; r < 90; r++) for (let c = 0; c < 90; c++) dn[r*90+c] = Math.max(occ[(2*r)*n+2*c], occ[(2*r+1)*n+2*c], occ[(2*r)*n+2*c+1], occ[(2*r+1)*n+2*c+1]);
+    const d2 = blur(dn, 90, 2);
+    const mix = new Float32Array(n*n);
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) mix[r*n+c] = Math.max(b1[r*n+c]*.9, d2[(r>>1)*90+(c>>1)]*.7);
+    cache = {occ, b1, d2, mix};
+    return cache;
   };
 })();
-
-/* ============================================================
-   S6 voxel grid
-   ============================================================ */
-hooks.s6 = {
-  init(){
-    const g = $('#s6grid'), pg = $('#s6pts');
-    for (let i = 0; i <= 10; i++) S('path', {d:`M${60+i*56} 30V422`, class:'s-grid', 'stroke-width':1}, g);
-    for (let j = 0; j <= 7; j++) S('path', {d:`M60 ${30+j*56}H620`, class:'s-grid', 'stroke-width':1}, g);
-    for (let i = 0; i < 10; i++) S('text', {x:60+i*56+28, y:440, class:'mono mut', 'text-anchor':'middle'}, g, String(880+i));
-    for (let r = 0; r < 7; r++) S('text', {x:52, y:30+r*56+32, class:'mono mut', 'text-anchor':'end'}, g, String(680-r));
-    S('text', {x:6, y:250, class:'mut', style:'font-size:12px', transform:'rotate(-90 14 250)'}, g, 'iy');
-    const r = rng(5);
-    for (let k = 0; k < 34; k++){
-      const x = 64 + r()*552, y = 34 + r()*384;
-      if (x > 280 && x < 344 && y > 194 && y < 258) continue;
-      S('circle', {cx:x, cy:y, r:3.5, class:'f-teal', opacity:.8}, pg);
-    }
-    for (const [x,y] of [[291.5,220.4],[328.8,205.5],[306.4,235.3]]) S('circle', {cx:x, cy:y, r:4, class:'f-teal'}, pg);
+function bevTex(arr, n, color, nearest){
+  const cv = document.createElement('canvas'); cv.width = n; cv.height = n;
+  const x = cv.getContext('2d');
+  x.fillStyle = tok('--panel2'); x.fillRect(0, 0, n, n);
+  const hx = color.startsWith('#') ? color : '#888888';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++){
+    const v = arr[r*n+c]; if (v < 0.03) continue;
+    x.fillStyle = hexA(hx, Math.min(1, v*1.2)); x.fillRect(c, n-1-r, 1, 1);
   }
-};
+  const t = new THREE.CanvasTexture(cv);
+  if (nearest){ t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; }
+  return t;
+}
 
 /* ============================================================
    S7 sparsity canvas
@@ -1660,87 +1722,6 @@ hooks.s7 = {
     ctx.fillRect(12*cw + .6, 18*ch + .6, (cw - 1.2)*.3, ch - 1.2);
   }
 };
-
-/* ============================================================
-   S8 dense vs sparse vs SubM
-   ============================================================ */
-hooks.s8 = (function(){
-  const N = 12, C = 40, O = 20;
-  const A = [[2,2],[3,2],[4,2],[2,3],[2,4],[7,5],[8,5],[8,6],[9,6],[5,9],[6,9],[10,10],[1,8],[9,1]];
-  const key = (x,y) => x + ',' + y;
-  const Aset = new Set(A.map(p => key(...p)));
-  function dilate(set, r){
-    const out = new Set();
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
-      let hit = false;
-      for (let dy = -r; dy <= r && !hit; dy++) for (let dx = -r; dx <= r && !hit; dx++) if (set.has(key(x+dx, y+dy))) hit = true;
-      if (hit) out.add(key(x,y));
-    }
-    return out;
-  }
-  const D1 = dilate(Aset, 1), D2 = dilate(Aset, 2);
-  const coarse = new Set();
-  for (let oy = 0; oy < N/2; oy++) for (let ox = 0; ox < N/2; ox++){
-    let hit = false;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (Aset.has(key(2*ox+dx, 2*oy+dy))) hit = true;
-    if (hit) coarse.add(key(ox,oy));
-  }
-  let timer = 0, svg, gOut, gIn, gK, gGrid;
-  function build(){
-    svg = $('#s8svg'); svg.innerHTML = '';
-    gOut = S('g', {}, svg); gIn = S('g', {}, svg); gGrid = S('g', {}, svg); gK = S('g', {}, svg);
-  }
-  function grid(fine){
-    gGrid.innerHTML = '';
-    for (let i = 0; i <= N; i++){
-      S('path', {d:`M${O+i*C} ${O}V${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
-      S('path', {d:`M${O} ${O+i*C}H${O+N*C}`, class:'s-grid', 'stroke-width': (!fine && i%2===0) ? 2.5 : 1}, gGrid);
-    }
-  }
-  function cells(g, set, cls, pad, op){
-    g.innerHTML = '';
-    for (const k of set){ const [x,y] = k.split(',').map(Number); S('rect', {x:O+x*C+pad, y:O+y*C+pad, width:C-2*pad, height:C-2*pad, rx:3, class:cls, opacity:op}, g); }
-  }
-  function kernelLoop(list, cellSize, span){
-    clearInterval(timer); gK.innerHTML = '';
-    if (!list.length) return;
-    const r = S('rect', {width:span*cellSize, height:span*cellSize, class:'f-none s-ink', 'stroke-width':2.5, rx:3}, gK);
-    let i = 0;
-    const place = () => { const [x,y] = list[i % list.length]; r.setAttribute('x', O + x*cellSize - (span-1)/2*C); r.setAttribute('y', O + y*cellSize - (span-1)/2*C); i++; };
-    place();
-    if (!reduced) timer = setInterval(place, list.length > 60 ? 70 : 260);
-  }
-  const all = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) all.push(key(x,y));
-  const toList = set => [...set].map(k => k.split(',').map(Number)).sort((a,b) => a[1]-b[1] || a[0]-b[0]);
-  return {
-    init: build,
-    step(k){
-      if (!svg) build();
-      const mode = $('#s8mode'), cnt = $('#s8count');
-      const inputOp = k >= 1 ? .9 : 1;
-      if (k <= 4 || k === 0){
-        grid(true);
-        cells(gIn, Aset, 'f-teal', 8, inputOp);
-      }
-      if (k === 0){ gOut.innerHTML = ''; clearInterval(timer); gK.innerHTML = ''; mode.textContent = '입력: 활성 칸 ' + Aset.size + ' / 144'; cnt.textContent = '활성 비율 ' + Math.round(Aset.size/144*100) + '%'; return; }
-      if (k === 1){ cells(gOut, new Set(all), 'f-heat', 1, .28); kernelLoop(toList(new Set(all)), C, 3); mode.textContent = 'Dense conv'; cnt.textContent = '계산 위치 144 / 144 · 출력 전부 채워짐'; }
-      if (k === 2){ cells(gOut, D1, 'f-heat', 1, .4); kernelLoop(toList(D1), C, 3); mode.textContent = 'Sparse conv (1층)'; cnt.textContent = `계산 위치 ${D1.size} · 활성 ${Aset.size} → ${D1.size}`; }
-      if (k === 3){ cells(gOut, D2, 'f-heat', 1, .4); kernelLoop(toList(D2), C, 3); mode.textContent = 'Sparse conv (2층)'; cnt.textContent = `활성 ${Aset.size} → ${D1.size} → ${D2.size} (번짐 누적)`; }
-      if (k === 4){ cells(gOut, Aset, 'f-heat', 1, .55); kernelLoop(toList(Aset), C, 3); mode.textContent = 'SubM conv'; cnt.textContent = `계산 위치 ${Aset.size} · 몇 층을 쌓아도 ${Aset.size}`; }
-      if (k >= 5){
-        grid(false);
-        cells(gIn, Aset, 'f-teal', 8, .6);
-        gOut.innerHTML = '';
-        for (const kk of coarse){ const [x,y] = kk.split(',').map(Number); S('rect', {x:O+x*2*C+2, y:O+y*2*C+2, width:2*C-4, height:2*C-4, rx:4, class:'f-heat', opacity:.35}, gOut); }
-        const list = toList(coarse).map(([x,y]) => [2*x, 2*y]);
-        kernelLoop(list, C, 3);
-        mode.textContent = 'Sparse conv, stride 2';
-        cnt.textContent = `12×12 → 6×6 · 활성 ${coarse.size} / 36`;
-      }
-    },
-    leave(){ clearInterval(timer); }
-  };
-})();
 
 /* ============================================================
    S9 rulebook toy
@@ -1797,142 +1778,6 @@ hooks.s9 = (function(){
 })();
 
 /* ============================================================
-   S10 backbone cuboids
-   ============================================================ */
-hooks.s10 = {
-  init(){
-    const svg = $('#s10svg');
-    const st = [
-      {n:'conv_input + conv1', c:16, z:41, xy:1440, op:'SubM × 5'},
-      {n:'conv2', c:32, z:21, xy:720, op:'SpConv s2 + SubM × 4'},
-      {n:'conv3', c:64, z:11, xy:360, op:'SpConv s2 + SubM × 4'},
-      {n:'conv4', c:128, z:5, xy:180, op:'SpConv s2 + SubM × 4'},
-      {n:'extra_conv', c:128, z:2, xy:180, op:'SpConv z만 s2'}
-    ];
-    let x = 10; const base = 290;
-    S('text', {x:10, y:30, class:'mut', style:'font-size:12px'}, svg, '정사각형 = 가로세로 해상도, 두께 = 채널 수 (로그 눈금)');
-    st.forEach((s,i) => {
-      const side = 40 + 100 * Math.log2(s.xy/180)/3, d = 8 + 60 * Math.log2(s.c/16)/3;
-      const dx = d*0.8, dy = d*0.6;
-      const g = S('g', {class:'frag', 'data-s': i+2}, svg);
-      const y0 = base - side;
-      const cls = i === 4 ? 'f-heat-s s-heat' : 'f-violet-s s-violet';
-      S('path', {d:`M${x} ${y0}L${x+dx} ${y0-dy}L${x+dx+side} ${y0-dy}L${x+side} ${y0}Z`, class:cls, 'stroke-width':1.2}, g);
-      S('path', {d:`M${x+side} ${y0}L${x+side+dx} ${y0-dy}L${x+side+dx} ${base-dy}L${x+side} ${base}Z`, class:cls, 'stroke-width':1.2, opacity:.8}, g);
-      S('rect', {x, y:y0, width:side, height:side, class:cls, 'stroke-width':1.5}, g);
-      const tx = x;
-      S('text', {x:tx, y:base+24, style:'font-weight:700;font-size:13px'}, g, s.n);
-      S('text', {x:tx, y:base+44, class:'mono violet'}, g, `C ${s.c} · Z ${s.z}`);
-      S('text', {x:tx, y:base+62, class:'mono violet'}, g, `${s.xy} × ${s.xy}`);
-      S('text', {x:tx, y:base+80, class:'mut', style:'font-size:11.5px'}, g, s.op);
-      const nx = x + side + dx + 40;
-      if (i < 4) S('path', {d:`M${x+side+dx+6} ${base-side/2}H${nx-6}`, class:'s-mut', 'stroke-width':1.5, 'marker-end':'url(#ah-mut)'}, g);
-      x = nx;
-    });
-    const rg = S('g', {class:'frag', 'data-s':7}, svg);
-    const bx = [['SubM','f-violet-s'],['BN','f-panel2'],['ReLU','f-panel2'],['SubM','f-violet-s'],['BN','f-panel2']];
-    let rx = 60; const ry = 410;
-    S('text', {x:10, y:ry+20, class:'mono'}, rg, 'x');
-    S('path', {d:`M24 ${ry+15}H${rx-4}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
-    bx.forEach(([t,c]) => { S('rect', {x:rx, y:ry, width:62, height:30, rx:4, class:c + ' s-line'}, rg); S('text', {x:rx+31, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, t); S('path', {d:`M${rx+62} ${ry+15}H${rx+78}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg); rx += 80; });
-    S('circle', {cx:rx+12, cy:ry+15, r:12, class:'f-heat-s s-heat'}, rg); S('text', {x:rx+12, y:ry+20, 'text-anchor':'middle', class:'heat', style:'font-weight:700'}, rg, '+');
-    S('path', {d:`M${rx+24} ${ry+15}H${rx+44}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, rg);
-    S('rect', {x:rx+46, y:ry, width:62, height:30, rx:4, class:'f-panel2 s-line'}, rg); S('text', {x:rx+77, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, rg, 'ReLU');
-    S('path', {d:`M40 ${ry+15}V${ry-18}H${rx+12}V${ry+1}`, class:'f-none s-heat', 'stroke-width':1.8, 'marker-end':'url(#ah-heat)'}, rg);
-    S('text', {x:(40+rx)/2, y:ry-24, 'text-anchor':'middle', class:'heat', style:'font-size:12px'}, rg, '지름길 (identity)');
-  }
-};
-
-/* ============================================================
-   S11 height -> channels
-   ============================================================ */
-hooks.s11 = (function(){
-  let cellsZ = [], plateCells = [];
-  const W = 34, X0 = 150, Y1 = 212, Y0 = 256, XF = 106, YF = 376;
-  return {
-    init(){
-      const svg = $('#s11svg');
-      const P = (i,j) => [140 + (i-j)*22, 36 + (i+j)*11];
-      const r = rng(3);
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++){
-        const a = P(i,j), b = P(i+1,j), c = P(i+1,j+1), d = P(i,j+1);
-        const on = r() < .3 || (i === 3 && j === 2);
-        const p = S('path', {d:`M${a}L${b}L${c}L${d}Z`, class: on ? 'f-teal-s s-grid' : 'f-panel s-grid', 'stroke-width':1}, svg);
-        plateCells.push({p, on});
-      }
-      // pillar on cell (3,2)
-      const top = P(3,2), right = P(4,2), bot = P(4,3), left = P(3,3);
-      const cube = (h0, h1, cls) => {
-        S('path', {d:`M${left[0]} ${left[1]-h1}L${bot[0]} ${bot[1]-h1}L${bot[0]} ${bot[1]-h0}L${left[0]} ${left[1]-h0}Z`, class:cls, opacity:.85, 'stroke-width':1}, svg);
-        S('path', {d:`M${bot[0]} ${bot[1]-h1}L${right[0]} ${right[1]-h1}L${right[0]} ${right[1]-h0}L${bot[0]} ${bot[1]-h0}Z`, class:cls, opacity:.65, 'stroke-width':1}, svg);
-        S('path', {d:`M${top[0]} ${top[1]-h1}L${right[0]} ${right[1]-h1}L${bot[0]} ${bot[1]-h1}L${left[0]} ${left[1]-h1}Z`, class:cls, 'stroke-width':1}, svg);
-      };
-      cube(0, 26, 'f-teal s-teal'); cube(26, 52, 'f-violet s-violet');
-      S('text', {x:300, y:70, style:'font-size:12.5px'}, svg, 'BEV 한 칸 (y, x) 위의 특징 기둥');
-      S('text', {x:300, y:90, class:'mut', style:'font-size:12px'}, svg, '보라 = z 1층, 청록 = z 0층');
-      S('text', {x:300, y:110, class:'mut', style:'font-size:12px'}, svg, '격자 180 × 180, 한 칸 0.6 m');
-      S('path', {d:`M${bot[0]} ${bot[1]+4}L${X0-10} ${Y1-4}`, class:'s-mut', 'stroke-dasharray':'3 4'}, svg);
-      S('text', {x:X0 + 8*W + 10, y:Y1+22, class:'mono violet'}, svg, 'z=1 : 128ch');
-      S('text', {x:X0 + 8*W + 10, y:Y0+22, class:'mono teal'}, svg, 'z=0 : 128ch');
-      S('text', {x:12, y:Y1+22, class:'mut', style:'font-size:11px'}, svg, '(128개 중 8개)');
-      const lab = S('g', {class:'frag', 'data-s':3}, svg);
-      S('text', {x:XF, y:YF-12, class:'mono heat'}, lab, 'reshape → 256ch : 채널 번호 = c·2 + d');
-      for (let i = 0; i < 16; i++) S('text', {x:XF + i*W + W/2, y:YF+50, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, lab, String(i));
-      for (let d = 0; d < 2; d++) for (let c = 0; c < 8; c++){
-        const g = S('g', {class:'mv'}, svg);
-        S('rect', {x:0, y:0, width:W-3, height:30, rx:3, class: d ? 'f-violet' : 'f-teal', opacity:.9}, g);
-        S('text', {x:(W-3)/2, y:20, 'text-anchor':'middle', class:'mono', style:'font-size:10.5px;fill:var(--panel)'}, g, 'c' + c);
-        cellsZ.push({g, c, d});
-      }
-    },
-    step(k){
-      plateCells.forEach(({p,on}) => p.setAttribute('class', on ? 'f-teal-s s-grid' : (k >= 2 ? 'f-panel2 s-grid' : 'f-panel s-grid')));
-      cellsZ.forEach(({g,c,d}) => {
-        let x, y;
-        if (k >= 3){ x = XF + (c*2 + d)*W; y = YF; }
-        else { x = X0 + c*W; y = d ? Y1 : Y0; }
-        g.style.transform = `translate(${x}px, ${y}px)`;
-      });
-    }
-  };
-})();
-
-/* ============================================================
-   S13 head diagram
-   ============================================================ */
-hooks.s13 = {
-  init(){
-    const svg = $('#s13svg');
-    const tasks = [['승용차'],['트럭','공사차량'],['버스','트레일러'],['방호벽'],['오토바이','자전거'],['보행자','콘']];
-    const hm = [1,2,2,1,2,2];
-    S('rect', {x:260, y:6, width:200, height:40, rx:4, class:'f-violet-s s-violet'}, svg);
-    S('text', {x:360, y:31, 'text-anchor':'middle', class:'mono'}, svg, 'Neck 출력 512×180²');
-    const g2 = S('g', {class:'frag', 'data-s':2}, svg);
-    S('path', {d:'M360 46V66', class:'s-ink', 'marker-end':'url(#ah-ink)'}, g2);
-    S('rect', {x:260, y:68, width:200, height:40, rx:4, class:'f-teal-s s-teal'}, g2);
-    S('text', {x:360, y:93, 'text-anchor':'middle', class:'mono'}, g2, 'shared Conv3×3 → 64×180²');
-    const g3 = S('g', {class:'frag', 'data-s':3}, svg), g4 = S('g', {class:'frag', 'data-s':4}, svg);
-    const heads = [['hm',0],['reg',2],['height',1],['dim',3],['rot',2],['vel',2]];
-    tasks.forEach((t,i) => {
-      const x = 8 + i*119, cx = x + 54;
-      S('path', {d:`M360 108L${cx} 140`, class:'s-mut', 'stroke-width':1}, g3);
-      S('rect', {x, y:142, width:108, height:52, rx:4, class:'f-bg s-line'}, g3);
-      S('text', {x:cx, y:160, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, g3, 'task ' + (i+1));
-      S('text', {x:cx, y:178, 'text-anchor':'middle', style:'font-size:12.5px;font-weight:600'}, g3, t[0]);
-      if (t[1]) S('text', {x:cx, y:191, 'text-anchor':'middle', style:'font-size:11.5px'}, g3, t[1]);
-      heads.forEach(([h,c],j) => {
-        const y = 206 + j*36, ch = h === 'hm' ? hm[i] : c;
-        S('rect', {x, y, width:108, height:30, rx:3, class: h === 'hm' ? 'f-heat-s s-heat' : 'f-teal-s s-teal'}, g4);
-        S('text', {x:x+8, y:y+20, class:'mono', style:'font-size:11.5px'}, g4, h);
-        S('text', {x:x+100, y:y+20, 'text-anchor':'end', class:'mono ' + (h === 'hm' ? 'heat' : 'teal'), style:'font-size:11.5px;font-weight:600'}, g4, String(ch));
-      });
-    });
-    const g5 = S('g', {class:'frag', 'data-s':5}, svg);
-    S('text', {x:360, y:452, 'text-anchor':'middle', style:'font-size:13px'}, g5, '출력 36개, 각각 [1, C, 180, 180] · 채널 합 70');
-  }
-};
-
-/* ============================================================
    S14 heatmap
    ============================================================ */
 const TASKS = ['승용차','트럭·공사차량','버스·트레일러','방호벽','오토바이·자전거','보행자·콘'];
@@ -1957,180 +1802,6 @@ const HEAT = (function(){
   }
   return maps;
 })();
-hooks.s14 = (function(){
-  let task = 0, lastK = 0;
-  function draw(k){
-    const P = prep($('#cv-s14')); if (!P) return;
-    const {ctx, w, h} = P, cs = Math.min(w,h)/180;
-    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
-    const heat = tok('--heat'), hx = heat.startsWith('#') ? heat : '#c0650f';
-    const m = HEAT[k >= 1 ? task : 0];
-    if (k >= 1){
-      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++){
-        const v = m[r*180 + c]; if (v < 0.015) continue;
-        ctx.fillStyle = hexA(hx, Math.min(1, v*1.1));
-        ctx.fillRect(c*cs, (179-r)*cs, cs+.3, cs+.3);
-      }
-    }
-    // grid hint
-    ctx.strokeStyle = tok('--line'); ctx.lineWidth = 1;
-    for (let i = 0; i <= 180; i += 30){ ctx.beginPath(); ctx.moveTo(i*cs, 0); ctx.lineTo(i*cs, 180*cs); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i*cs); ctx.lineTo(180*cs, i*cs); ctx.stroke(); }
-    if (k >= 4){
-      ctx.strokeStyle = tok('--ink'); ctx.lineWidth = .8;
-      for (let r = 0; r < 180; r++) for (let c = 0; c < 180; c++) if (m[r*180+c] > 0.1) ctx.strokeRect(c*cs+.4, (179-r)*cs+.4, cs-.8, cs-.8);
-    }
-    ctx.fillStyle = tok('--ink');
-    const e = 90*cs; ctx.beginPath(); ctx.moveTo(e+6, e); ctx.lineTo(e-4, e-4); ctx.lineTo(e-4, e+4); ctx.closePath(); ctx.fill();
-    ctx.font = '11px ' + tok('--mono'); ctx.fillStyle = tok('--muted');
-    ctx.fillText('30칸 = 18 m', 4, 180*cs - 6);
-    if (k >= 3 && task === 0){
-      ctx.strokeStyle = tok('--rose'); ctx.lineWidth = 2;
-      ctx.strokeRect((110-2)*cs, (179-95-2)*cs, 5*cs, 5*cs);
-    }
-  }
-  return {
-    init(){
-      const b = $('#s14btns');
-      TASKS.forEach((t,i) => {
-        const x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.className = i === 0 ? 'sel' : '';
-        x.addEventListener('click', e => { e.stopPropagation(); task = i; $$('button', b).forEach((y,j) => y.classList.toggle('sel', j === i)); draw(Math.max(lastK, 1)); });
-        b.appendChild(x);
-      });
-      const tb = $('#s14tab'), sig = 5/6;
-      let html = '';
-      for (let dy = 2; dy >= -2; dy--){
-        html += '<tr>';
-        for (let dx = -2; dx <= 2; dx++){
-          const v = 0.91*Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
-          html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v.toFixed(2)}</td>`;
-        }
-        html += '</tr>';
-      }
-      tb.innerHTML = html;
-    },
-    step(k){ lastK = k; draw(k); }
-  };
-})();
-
-/* ============================================================
-   S15 regression encodings
-   ============================================================ */
-hooks.s15 = {
-  init(){
-    const svg = $('#s15svg');
-    // panel A: offset
-    const gA = S('g', {class:'frag', 'data-s':1}, svg);
-    S('rect', {x:0, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gA);
-    S('text', {x:12, y:22, style:'font-weight:700'}, gA, '오프셋: 칸 안의 정확한 위치');
-    const cx0 = 90, cy0 = 40, cz = 170;
-    for (let i = -1; i <= 2; i++){ S('path', {d:`M${cx0+i*cz*0.5} ${cy0}V${cy0+cz}`, class:'s-grid'}, gA); }
-    S('rect', {x:cx0, y:cy0, width:cz, height:cz, class:'f-heat-s s-heat', 'stroke-width':2}, gA);
-    const px = cx0 + 0.37*cz, py = cy0 + (1-0.62)*cz;
-    S('circle', {cx:cx0, cy:cy0+cz, r:5, class:'f-ink'}, gA);
-    S('text', {x:cx0-8, y:cy0+cz+18, class:'mono', 'text-anchor':'end', style:'font-size:11px'}, gA, '(110, 95)');
-    S('path', {d:`M${cx0} ${cy0+cz}H${px}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)'}, gA);
-    S('path', {d:`M${px} ${cy0+cz}V${py+6}`, class:'s-teal', 'stroke-width':2, 'marker-end':'url(#ah-teal)', 'stroke-dasharray':'4 3'}, gA);
-    S('circle', {cx:px, cy:py, r:6, class:'f-rose'}, gA);
-    S('text', {x:cx0 + 0.18*cz, y:cy0+cz-8, class:'mono teal', 'text-anchor':'middle', style:'font-size:11px'}, gA, 'Δx 0.37');
-    S('text', {x:px+8, y:cy0+cz-0.3*cz, class:'mono teal', style:'font-size:11px'}, gA, 'Δy 0.62');
-    S('text', {x:cx0+cz+8, y:cy0+14, class:'mut', style:'font-size:11.5px'}, gA, '1칸 = 0.6 m');
-    // panel B: log scale
-    const gB = S('g', {class:'frag', 'data-s':3}, svg);
-    S('rect', {x:370, y:0, width:350, height:240, rx:5, class:'f-bg s-line'}, gB);
-    S('text', {x:382, y:22, style:'font-weight:700'}, gB, '크기: log 눈금');
-    const items = [['콘',0.4],['보행자',0.7],['승용차',4.6],['버스',11]];
-    S('text', {x:382, y:50, class:'mut', style:'font-size:12px'}, gB, '길이 그대로 (선형)');
-    S('path', {d:'M390 80H700', class:'s-mut'}, gB);
-    items.forEach(([n,v]) => { const x = 390 + v/12*310; S('circle', {cx:x, cy:80, r:4.5, class:'f-teal'}, gB); });
-    S('text', {x:390, y:100, class:'mut mono', style:'font-size:10.5px'}, gB, '0');
-    S('text', {x:700, y:100, class:'mut mono', 'text-anchor':'end', style:'font-size:10.5px'}, gB, '12 m');
-    S('text', {x:392, y:66, class:'rose', style:'font-size:11px'}, gB, '작은 물체들이 한쪽에 몰림');
-    S('text', {x:382, y:138, class:'mut', style:'font-size:12px'}, gB, 'log(길이)');
-    S('path', {d:'M390 170H700', class:'s-mut'}, gB);
-    const lx = v => 390 + (Math.log(v) - Math.log(0.3)) / (Math.log(15) - Math.log(0.3)) * 310;
-    items.forEach(([n,v],i) => { const x = lx(v); S('circle', {cx:x, cy:170, r:4.5, class:'f-heat'}, gB); S('text', {x, y: i%2 ? 196 : 158, 'text-anchor':'middle', style:'font-size:11.5px'}, gB, n); });
-    S('text', {x:382, y:226, class:'mut', style:'font-size:11.5px'}, gB, '같은 간격 = 같은 "몇 배" · exp()로 되돌리면 항상 > 0');
-    // panel C: sin/cos
-    const gC = S('g', {class:'frag', 'data-s':4}, svg);
-    S('rect', {x:0, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gC);
-    S('text', {x:12, y:280, style:'font-weight:700'}, gC, '방향: 원 위의 점 (cos θ, sin θ)');
-    const ox = 120, oy = 385, R = 78;
-    S('circle', {cx:ox, cy:oy, r:R, class:'f-none s-mut'}, gC);
-    S('path', {d:`M${ox-R-10} ${oy}H${ox+R+10}M${ox} ${oy-R-10}V${oy+R+10}`, class:'s-grid'}, gC);
-    const a = Math.PI/6, qx = ox + R*Math.cos(a), qy = oy - R*Math.sin(a);
-    S('path', {d:`M${ox} ${oy}L${qx} ${qy}`, class:'s-heat', 'stroke-width':2}, gC);
-    S('circle', {cx:qx, cy:qy, r:5, class:'f-heat'}, gC);
-    S('text', {x:qx+6, y:qy-6, class:'mono heat', style:'font-size:11px'}, gC, '(0.866, 0.50)');
-    S('path', {d:`M${ox+28} ${oy}A28 28 0 0 0 ${ox+28*Math.cos(a)} ${oy-28*Math.sin(a)}`, class:'f-none s-heat'}, gC);
-    S('text', {x:ox+34, y:oy-5, class:'heat', style:'font-size:11px'}, gC, '30°');
-    const b1 = Math.PI*179/180, b2 = -Math.PI*179/180;
-    S('circle', {cx:ox + R*Math.cos(b1), cy:oy - R*Math.sin(b1), r:4.5, class:'f-violet'}, gC);
-    S('circle', {cx:ox + R*Math.cos(b2), cy:oy - R*Math.sin(b2), r:4.5, class:'f-violet'}, gC);
-    S('text', {x:215, y:350, class:'violet', style:'font-size:11.5px'}, gC, '+179° 와 −179°');
-    S('text', {x:215, y:368, style:'font-size:11.5px'}, gC, '숫자로는 358 차이');
-    S('text', {x:215, y:386, style:'font-size:11.5px'}, gC, '원 위에선 바로 옆');
-    S('text', {x:215, y:420, class:'mono', style:'font-size:11px'}, gC, 'θ = atan2(sin, cos)');
-    // panel D: velocity + height
-    const gD = S('g', {class:'frag', 'data-s':2}, svg);
-    S('rect', {x:370, y:258, width:350, height:242, rx:5, class:'f-bg s-line'}, gD);
-    S('text', {x:382, y:280, style:'font-weight:700'}, gD, '높이 z와 속도 v');
-    S('path', {d:'M392 460H560', class:'s-mut', 'stroke-width':2}, gD);
-    S('rect', {x:420, y:405, width:110, height:40, rx:6, class:'f-teal-s s-teal'}, gD);
-    S('path', {d:'M475 460V427', class:'s-heat', 'stroke-width':2, 'marker-end':'url(#ah-heat)'}, gD);
-    S('circle', {cx:475, cy:425, r:4, class:'f-heat'}, gD);
-    S('text', {x:482, y:398, class:'mono heat', style:'font-size:11px'}, gD, 'z (중심 높이)');
-    S('text', {x:392, y:486, class:'mut', style:'font-size:11px'}, gD, '옆에서 본 모습 · 지면');
-    const gV = S('g', {class:'frag', 'data-s':5}, svg);
-    S('g', {}, gV);
-    const vg = S('g', {transform:'translate(630 380) rotate(-30)'}, gV);
-    S('rect', {x:-38, y:-15, width:76, height:30, rx:5, class:'f-teal-s s-teal'}, vg);
-    S('path', {d:'M0 0H70', class:'s-ink', 'stroke-width':2.2, 'marker-end':'url(#ah-ink)'}, vg);
-    S('text', {x:590, y:318, class:'mono', style:'font-size:11px'}, gV, 'v = (3.2, 0.4) m/s');
-    S('text', {x:590, y:452, class:'mut', style:'font-size:11px'}, gV, '위에서 본 모습');
-  }
-};
-
-/* ============================================================
-   S16 gaussian target
-   ============================================================ */
-hooks.s16 = {
-  init(){
-    const svg = $('#s16svg'), C = 30, cols = 16, rows = 9, ox = 40, oy = 16;
-    const c0 = 110 - 8, r0 = 95 - 4; // window: cols 102..117, rows 91..99
-    for (let i = 0; i <= cols; i++) S('path', {d:`M${ox+i*C} ${oy}V${oy+rows*C}`, class:'s-grid'}, svg);
-    for (let j = 0; j <= rows; j++) S('path', {d:`M${ox} ${oy+j*C}H${ox+cols*C}`, class:'s-grid'}, svg);
-    const toPx = (col, row) => [ox + (col - c0)*C, oy + (r0 + rows - row)*C];
-    const g1 = S('g', {class:'frag', 'data-s':1}, svg);
-    const [hx, hy] = toPx(110, 96);
-    S('rect', {x:hx, y:hy, width:C, height:C, class:'f-heat-s s-heat', 'stroke-width':2}, g1);
-    // car footprint
-    const cc = [110.37, 95.62], L = 4.62/0.6, Wd = 1.94/0.6, a = 0.524;
-    const pts = [[L/2,Wd/2],[-L/2,Wd/2],[-L/2,-Wd/2],[L/2,-Wd/2]].map(([u,v]) => {
-      const x = cc[0] + u*Math.cos(a) - v*Math.sin(a), y = cc[1] + u*Math.sin(a) + v*Math.cos(a);
-      const [px, py] = toPx(x, y); return px + ',' + py;
-    });
-    S('polygon', {points:pts.join(' '), class:'f-none s-teal', 'stroke-width':2}, svg);
-    const [cx, cy] = toPx(cc[0], cc[1]);
-    S('circle', {cx, cy, r:4.5, class:'f-rose'}, svg);
-    S('text', {x:ox, y:oy+rows*C+18, class:'mono mut', style:'font-size:11px'}, svg, `열 ${c0} … ${c0+cols-1}  (1칸 = 0.6 m)`);
-    const g3 = S('g', {class:'frag', 'data-s':3}, svg);
-    const [ex, ey] = toPx(110.5, 95.5);
-    S('circle', {cx:ex, cy:ey, r:2.5*C, class:'f-heat s-heat', 'fill-opacity':.12, 'stroke-dasharray':'5 4'}, g3);
-    S('path', {d:`M${ex} ${ey}H${ex+2*C}`, class:'s-heat', 'stroke-width':2}, g3);
-    S('text', {x:ex+C, y:ey-6, 'text-anchor':'middle', class:'mono heat', style:'font-size:11px'}, g3, 'r = 2');
-    const tb = $('#s16tab'), sig = 5/6; let html = '';
-    for (let dy = 2; dy >= -2; dy--){
-      html += '<tr>';
-      for (let dx = -2; dx <= 2; dx++){
-        const v = Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
-        html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v < 0.005 ? '0.00' : v.toFixed(2)}</td>`;
-      }
-      html += '</tr>';
-    }
-    tb.innerHTML = html;
-  }
-};
-
 /* ============================================================
    S17 focal loss chart
    ============================================================ */
@@ -2212,48 +1883,6 @@ const CANDS = (function(){
   out.forEach((c,i) => c.keep = keep.includes(i));
   return out;
 })();
-hooks.s18 = (function(){
-  let raf = 0, t0 = 0;
-  function draw(k, t){
-    const P = prep($('#cv-s18')); if (!P) return;
-    const {ctx, w, h} = P;
-    const R = 26, sc = Math.min(w,h)/(2*R), cx = w/2, cy = h/2, m = {sc, cx, cy};
-    ctx.fillStyle = tok('--bg'); ctx.fillRect(0,0,w,h);
-    ctx.globalAlpha = .35;
-    for (const p of POINTS){ const X = cx + p[0]*sc, Y = cy - p[1]*sc; if (X<0||Y<0||X>w||Y>h) continue; ctx.fillStyle = zColor(p[2]); ctx.fillRect(X-.7, Y-.7, 1.4, 1.4); }
-    ctx.globalAlpha = 1;
-    const heat = tok('--heat'), rose = tok('--rose'), ink = tok('--ink');
-    if (k === 1){
-      for (const c of CANDS){ const X = cx + ((c.cell[0]+.5)*0.6 - 54)*sc, Y = cy - ((c.cell[1]+.5)*0.6 - 54)*sc; ctx.fillStyle = heat; ctx.globalAlpha = .4 + .6*c.score; ctx.beginPath(); ctx.arc(X, Y, 3, 0, Math.PI*2); ctx.fill(); }
-      ctx.globalAlpha = 1;
-    }
-    if (k === 2){ for (const c of CANDS){ ctx.globalAlpha = .3 + .6*c.score; strokeBox(ctx, c, m, heat, 1.2, false); } ctx.globalAlpha = 1; }
-    if (k === 3){
-      const e = reduced ? 1 : Math.min(1, (t - t0)/1600);
-      for (const c of CANDS){
-        if (c.keep){ strokeBox(ctx, c, m, heat, 2, true); continue; }
-        if (e < .5){ ctx.globalAlpha = .9; strokeBox(ctx, c, m, rose, 1.4, false); }
-        else { ctx.globalAlpha = Math.max(0, 1 - (e - .5)*2); strokeBox(ctx, c, m, rose, 1.4, false); }
-      }
-      ctx.globalAlpha = 1;
-      if (e < 1) raf = requestAnimationFrame(tt => draw(k, tt));
-    }
-    if (k >= 4){
-      ctx.font = '11px ' + tok('--sans');
-      for (const c of CANDS){ if (!c.keep) continue; strokeBox(ctx, c, m, heat, 2, true); const X = cx + c.x*sc, Y = cy - c.y*sc; ctx.fillStyle = ink; ctx.fillText(`${c.cls} ${c.score.toFixed(2)}`, X + 6, Y - Math.max(c.l, c.w)*sc/2 - 3); }
-    }
-    ctx.fillStyle = ink; ctx.beginPath(); ctx.moveTo(cx+7, cy); ctx.lineTo(cx-5, cy-5); ctx.lineTo(cx-5, cy+5); ctx.closePath(); ctx.fill();
-    ctx.font = '12px ' + tok('--sans'); ctx.fillStyle = tok('--muted');
-    const nk = CANDS.filter(c => c.keep).length;
-    const msg = ['', `후보 칸 ${CANDS.length}개`, `후보 박스 ${CANDS.length}개 (겹침 많음)`, `NMS: ${CANDS.length - nk}개 제거`, `최종 ${nk}개`, `최종 ${nk}개`, `최종 ${nk}개`][k] || '';
-    ctx.fillText(msg, 12, 20);
-  }
-  return {
-    step(k){ cancelAnimationFrame(raf); t0 = performance.now(); draw(k, t0); },
-    leave(){ cancelAnimationFrame(raf); }
-  };
-})();
-
 /* ============================================================
    S19 tracking
    ============================================================ */
@@ -2388,13 +2017,838 @@ hooks.s21 = {
 };
 
 /* ============================================================
+   S1 title: 3D LiDAR scan with rotating beam
+   ============================================================ */
+D3.s1 = {
+  host:'#v3-s1', cam:{r:56, phi:.98, theta:.95, tx:-7, ty:0, tz:3}, spinRate:.03,
+  build(S){ lights(S); this.p = points(cloudList(), .09, true); S.add(this.p); S.add(ego()); },
+  update(t){
+    const u = this.p.material.uniforms;
+    if (reduced){ u.uSweepOn.value = 0; return; }
+    u.uSweep.value = (t / 2400 * Math.PI * 2) % (Math.PI * 2);
+  }
+};
+
+/* ============================================================
+   S2 problem: point cloud, density rings, 3D boxes
+   ============================================================ */
+D3.s2 = {
+  host:'#v3-s2', cam:{r:64, phi:.92, theta:.55},
+  build(S){
+    lights(S); S.add(gridH(108, 18, .22)); S.add(points(cloudList(), .1)); S.add(ego());
+    const ink = tok('--ink'), heat = tok('--heat');
+    this.rings = new THREE.Group();
+    [8, 30].forEach(r => this.rings.add(ring(0, .05, 0, r, ink, .55)));
+    this.rings.add(label('가까움: 점이 빽빽', {pos:new THREE.Vector3(6, 2, -6), size:1.5}));
+    this.rings.add(label('멂: 점이 듬성듬성', {pos:new THREE.Vector3(21.5, 2, -21.5), size:1.5}));
+    S.add(this.rings);
+    this.boxes = new THREE.Group(); OBJS.forEach(o => this.boxes.add(box3(o, heat, .16))); S.add(this.boxes);
+    this.labels = new THREE.Group(); const seen = new Set();
+    OBJS.forEach(o => { if (seen.has(o.cls)) return; seen.add(o.cls); this.labels.add(label(o.cls, {pos:new THREE.Vector3(o.x, o.h + 1.6, -o.y), size:1.3})); });
+    S.add(this.labels);
+    [this.rings, this.boxes, this.labels].forEach(g => fade(this, g, false));
+  },
+  step(k){
+    fade(this, this.rings, k >= 1); fade(this, this.boxes, k >= 2); fade(this, this.labels, k >= 3);
+    V3.view(k >= 2 ? {r:46, phi:.82} : {r:64, phi:.92});
+  }
+};
+
+/* ============================================================
+   S5 multi-sweep in 3D
+   ============================================================ */
+D3.s5 = (function(){
+  const r = rng(11), sensor = [0, -9], raw = [], cum = [];
+  function carPts(cx, cy, n){
+    const o = {x:cx, y:cy, w:1.9, l:4.5}, out = [];
+    const E = [[[o.l/2,-o.w/2],[o.l/2,o.w/2],[1,0]],[[-o.l/2,-o.w/2],[-o.l/2,o.w/2],[-1,0]],[[-o.l/2,o.w/2],[o.l/2,o.w/2],[0,1]],[[-o.l/2,-o.w/2],[o.l/2,-o.w/2],[0,-1]]];
+    let made = 0, guard = 0;
+    while (made < n && guard++ < n*10){
+      const e = E[Math.floor(r()*4)], f = r();
+      const x = o.x + e[0][0] + (e[1][0]-e[0][0])*f, y = o.y + e[0][1] + (e[1][1]-e[0][1])*f;
+      if (e[2][0]*(x - sensor[0]) + e[2][1]*(y - sensor[1]) > 0) continue;
+      out.push([x + gauss(r)*.03, y + gauss(r)*.03, .25 + r()*1.3]); made++;
+    }
+    return out;
+  }
+  for (let s = 0; s < 10; s++){
+    const dt = s * .05;
+    carPts(1.5 - 8*dt, 0, 60).forEach(p => raw.push([...p, s]));
+    carPts(-3.5, 5.5, 34).forEach(p => raw.push([...p, s]));
+    for (let k = 0; k < 110; k++){ const x = -9 + r()*18, y = -3 + r()*12; if (Math.abs(y) < 1.2 && x > -4.5 && x < 4) continue; if (r() < .5) raw.push([x, y, 0, s]); }
+    cum.push(raw.length);
+  }
+  return {
+    host:'#v3-s5', cam:{r:14, phi:.92, theta:.35, tx:-1, ty:.6, tz:-2}, spinRate:.02,
+    build(S){
+      lights(S); S.add(gridH(20, 20, .25));
+      const heat = tok('--heat'), vio = tok('--violet'), c = new THREE.Color();
+      this.p = points(raw.map(([x,y,z,s]) => { c.set(s === 0 ? heat : lerpHex(heat, vio, Math.min(1, .35 + s/9*.65))); return [x, z, -y, c.r, c.g, c.b, s === 0 ? 1 : .8]; }), .07);
+      this.p.geometry.setDrawRange(0, cum[0]);
+      S.add(this.p);
+      S.add(label('움직이는 차 (8 m/s →)', {pos:T3(1.2, 0, 2.4), size:.45}));
+      S.add(label('서 있는 차', {pos:T3(-3.5, 5.5, 2.3), size:.45}));
+      const ink = tok('--ink');
+      this.tail = new THREE.Group();
+      this.tail.add(arrow(T3(-4.4, -1.6, .1), T3(-.6, -1.6, .1), ink, .35, .2));
+      this.tail.add(label('꼬리 길이 ≈ 속도 × 0.45 s', {pos:T3(-2.5, -2.3, .5), size:.4}));
+      S.add(this.tail); fade(this, this.tail, false);
+    },
+    step(k){
+      this.k = k; this.t0 = performance.now();
+      if (k < 4 || reduced) this.p.geometry.setDrawRange(0, k < 4 ? cum[0] : cum[9]);
+      fade(this, this.tail, k >= 5);
+    },
+    update(t){
+      if (this.k === 4 && !reduced){ const i = Math.min(9, Math.floor((t - this.t0) / 150)); this.p.geometry.setDrawRange(0, cum[i]); }
+      if (this.k >= 5) this.p.geometry.setDrawRange(0, cum[9]);
+    }
+  };
+})();
+
+/* ============================================================
+   S6 voxelization: points dropped into a 3D lattice
+   ============================================================ */
+D3.s6 = (function(){
+  const V = (x, y, z) => new THREE.Vector3(x - 5, z, -(y - 4));
+  const r = rng(5), pts = [];
+  const inHot = (x,y,z) => Math.floor(x) === 4 && Math.floor(y) === 3 && Math.floor(z) === 2;
+  for (let i = 0; i < 140; i++){ const x = .3 + r()*9.4, y = 3.15 + gauss(r)*.14, z = .2 + r()*3.9; if (!inHot(x,y,z)) pts.push([x,y,z]); }
+  for (let i = 0; i < 60; i++){ const x = 2 + r()*6, y = 3.4 + r()*4.2, z = 4.3 + gauss(r)*.08; pts.push([x,y,z]); }
+  const hot = [[4.53,3.2,2.85],[4.133,3.6,2.25],[4.8,3.867,2.6],[4.4,3.333,2.4]];
+  return {
+    host:'#v3-s6', cam:{r:19, phi:1.08, theta:.55, tx:0, ty:2.6, tz:0}, spinRate:.025,
+    build(S){
+      lights(S);
+      const teal = tok('--teal'), heat = tok('--heat'), rose = tok('--rose'), ink = tok('--ink'), mut = tok('--muted'), c = new THREE.Color(teal);
+      S.add(points(pts.map(([x,y,z]) => { const v = V(x,y,z); return [v.x, v.y, v.z, c.r, c.g, c.b, 1]; }), .16));
+      hot.forEach((p,i) => { const s = sphere(i ? .09 : .13, i ? teal : rose); s.position.copy(V(...p)); S.add(s); });
+      // lattice
+      const seg = [];
+      for (let y = 0; y <= 8; y++) for (let z = 0; z <= 6; z++) seg.push(V(0,y,z), V(10,y,z));
+      for (let x = 0; x <= 10; x++) for (let z = 0; z <= 6; z++) seg.push(V(x,0,z), V(x,8,z));
+      for (let x = 0; x <= 10; x++) for (let y = 0; y <= 8; y++) seg.push(V(x,y,0), V(x,y,6));
+      this.lat = new THREE.Group();
+      this.lat.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg), new THREE.LineBasicMaterial({color:mut, transparent:true, opacity:.16})));
+      for (let i = 0; i < 10; i++) this.lat.add(label(String(880+i), {pos:V(i+.5, -.7, 0), size:.36, bg:false, color:mut}));
+      for (let j = 0; j < 8; j++) this.lat.add(label(String(674+j), {pos:V(-.8, j+.5, 0), size:.36, bg:false, color:mut}));
+      for (let k = 0; k < 6; k++) this.lat.add(label(String(25+k), {pos:V(-.6, -.6, k+.5), size:.36, bg:false, color:mut}));
+      this.lat.add(label('ix →', {pos:V(10.8, -.7, 0), size:.4, bg:false}));
+      this.lat.add(label('iy →', {pos:V(-.8, 8.6, 0), size:.4, bg:false}));
+      this.lat.add(label('iz ↑', {pos:V(-.6, -.6, 6.5), size:.4, bg:false}));
+      S.add(this.lat);
+      // projection guides
+      const p = hot[0];
+      this.proj = new THREE.Group();
+      this.proj.add(line([V(...p), V(p[0], p[1], 0)], rose, {dash:.15}));
+      this.proj.add(line([V(p[0], p[1], 0), V(p[0], 0, 0)], rose, {dash:.15}));
+      this.proj.add(line([V(p[0], p[1], 0), V(0, p[1], 0)], rose, {dash:.15}));
+      this.proj.add(label('p = (12.34, −3.21, 0.57) m', {pos:V(p[0], p[1], p[2] + 1.2), size:.42, color:rose}));
+      S.add(this.proj);
+      // hot voxel
+      this.hot = new THREE.Group();
+      const hb = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({color:heat, transparent:true, opacity:.38, depthWrite:false}));
+      hb.position.copy(V(4.5, 3.5, 2.5)); this.hot.add(hb);
+      const hw = wireBox(1, 1, 1, heat); hw.position.copy(hb.position); this.hot.add(hw);
+      this.hot.add(label('(ix, iy, iz) = (884, 677, 27)', {pos:V(4.5, -1.6, 2.6), size:.46, color:heat, bold:true}));
+      S.add(this.hot);
+      // all occupied voxels
+      const occ = new Map();
+      pts.forEach(([x,y,z]) => { const k = [Math.floor(x), Math.floor(y), Math.floor(z)]; if (k.join() !== '4,3,2') occ.set(k.join(), k); });
+      this.occ = inst([...occ.values()].map(([i,j,k]) => { const v = V(i+.5, j+.5, k+.5); return [v.x, v.y, v.z, .96, .96, .96]; }), teal, .2);
+      S.add(this.occ);
+      this.key = label('해시 키 = 27·1440² + 677·1440 + 884 = 56,962,964', {pos:V(5.5, 4, 6.8), size:.36});
+      S.add(this.key);
+      [this.lat, this.proj, this.hot, this.occ, this.key].forEach(g => fade(this, g, false));
+    },
+    step(k){
+      fade(this, this.lat, k >= 1); fade(this, this.proj, k >= 2); fade(this, this.hot, k >= 3); fade(this, this.occ, k >= 4); fade(this, this.key, k >= 5);
+      V3.view(k >= 3 && k < 4 ? {r:11, tx:-.5, ty:2.5, tz:.5} : {r:19, tx:0, ty:2.6, tz:0});
+    }
+  };
+})();
+
+/* ============================================================
+   S7 one voxel: points collapse to their mean
+   ============================================================ */
+D3.s7 = (function(){
+  const F = [[.533,.2,.85],[.133,.6,.25],[.8,.867,.6],[.4,.333,.4]], M = [.4665,.5,.525];
+  const P = f => new THREE.Vector3(f[0]*3 - 1.5, f[2]*8 - 4, -(f[1]*3 - 1.5));
+  return {
+    host:'#v3-s7', cam:{r:15, phi:1.12, theta:.7, ty:-.2}, spinRate:.06,
+    build(S){
+      lights(S);
+      const teal = tok('--teal'), heat = tok('--heat'), ink = tok('--ink');
+      const g = new THREE.BoxGeometry(3, 8, 3);
+      S.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({color:teal, transparent:true, opacity:.07, depthWrite:false})));
+      S.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({color:ink})));
+      S.add(label('7.5 cm', {pos:new THREE.Vector3(0, -4.6, 1.9), size:.55, bg:false}));
+      S.add(label('20 cm', {pos:new THREE.Vector3(2.4, 0, 1.6), size:.55, bg:false}));
+      this.sp = F.map((f,i) => { const s = sphere(.26, teal); s.position.copy(P(f)); s.userData.o = P(f); S.add(s); return s; });
+      this.pl = new THREE.Group();
+      F.forEach((f,i) => this.pl.add(label('p' + (i+1), {pos:P(f).add(new THREE.Vector3(.45, .45, 0)), size:.5, bg:false})));
+      S.add(this.pl);
+      this.mean = new THREE.Group();
+      const m = sphere(.42, heat); m.position.copy(P(M)); this.mean.add(m);
+      this.mean.add(label('평균', {pos:P(M).add(new THREE.Vector3(0, 1.1, 0)), size:.6, color:heat, bold:true}));
+      S.add(this.mean);
+      this.mpos = P(M);
+      fade(this, this.pl, true); fade(this, this.mean, false);
+    },
+    step(k){ this.k = k; fade(this, this.pl, k < 2); fade(this, this.mean, k >= 2); },
+    update(t, dt){
+      const a = reduced ? 1 : 1 - Math.exp(-dt * 3);
+      this.sp.forEach(s => { s.position.lerp(this.k >= 2 ? this.mpos : s.userData.o, a); s.visible = !(this.k >= 2 && s.position.distanceTo(this.mpos) < .08); });
+    }
+  };
+})();
+
+/* ============================================================
+   S8 dense / sparse / SubM / strided convolution on 3D voxels
+   ============================================================ */
+D3.s8 = (function(){
+  const NI = 16, NJ = 8, NK = 6, key = (i,j,k) => i + ',' + j + ',' + k;
+  const A = new Map();
+  const add = (i,j,k) => A.set(key(i,j,k), [i,j,k]);
+  for (let i = 0; i <= 9; i++) for (let k = 0; k <= 2; k++) add(i, 0, k);
+  for (let j = 0; j <= 3; j++) for (let k = 0; k <= 2; k++) add(9, j, k);
+  for (let i = 2; i <= 7; i++) for (let j = 0; j <= 3; j++) add(i, j, 3);
+  for (let k = 0; k <= 3; k++) add(13, 2, k);
+  add(5, 6, 0); add(1, 5, 1);
+  function dilate(r){
+    const out = new Map();
+    for (const [i,j,k] of A.values())
+      for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) for (let c = -r; c <= r; c++){
+        const I = i+a, J = j+b, K = k+c; if (I<0||J<0||K<0||I>=NI||J>=NJ||K>=NK) continue; out.set(key(I,J,K), [I,J,K]);
+      }
+    return [...out.values()];
+  }
+  const all = []; for (let k = 0; k < NK; k++) for (let j = 0; j < NJ; j++) for (let i = 0; i < NI; i++) all.push([i,j,k]);
+  const D1 = dilate(1), D2 = dilate(2), IN = [...A.values()];
+  const coarse = [];
+  for (let c = 0; c < NK/2; c++) for (let b = 0; b < NJ/2; b++) for (let a = 0; a < NI/2; a++){
+    let hit = false;
+    for (const [i,j,k] of IN) if (Math.abs(i - 2*a) <= 1 && Math.abs(j - 2*b) <= 1 && Math.abs(k - 2*c) <= 1){ hit = true; break; }
+    if (hit) coarse.push([a,b,c]);
+  }
+  const pos = (i,j,k) => [i + .5 - NI/2, k + .5, -(j + .5 - NJ/2)];
+  const sortL = l => l.slice().sort((p,q) => p[2]-q[2] || p[1]-q[1] || p[0]-q[0]);
+  return {
+    host:'#v3-s8', cam:{r:23, phi:.98, theta:.7, ty:2}, spinRate:.03,
+    build(S){
+      lights(S); S.add(gridH(18, 18, .25));
+      const teal = tok('--teal'), heat = tok('--heat'), ink = tok('--ink');
+      this.inp = inst(IN.map(p => [...pos(...p), .74, .74, .74]), teal, 1); S.add(this.inp);
+      this.inpDim = inst(IN.map(p => [...pos(...p), .5, .5, .5]), teal, .6); S.add(this.inpDim);
+      const out = l => inst(l.map(p => [...pos(...p), .96, .96, .96]), heat, .2);
+      this.outs = {
+        1: out(all), 2: out(D1), 3: out(D2), 4: inst(IN.map(p => [...pos(...p), .98, .98, .98]), heat, .45),
+        5: inst(coarse.map(([a,b,c]) => { const p = pos(2*a+.5, 2*b+.5, 2*c+.5); return [...p, 1.94, 1.94, 1.94]; }), heat, .22)
+      };
+      Object.values(this.outs).forEach(o => { S.add(o); fade(this, o, false); });
+      this.kern = wireBox(3, 3, 3, ink); S.add(this.kern);
+      fade(this, this.inp, true); fade(this, this.inpDim, false);
+      this.lists = {0:[], 1:sortL(all), 2:sortL(D1), 3:sortL(D2), 4:sortL(IN), 5:sortL(coarse).map(([a,b,c]) => [2*a, 2*b, 2*c])};
+    },
+    step(k){
+      const m = Math.min(k, 5);
+      for (const n in this.outs) fade(this, this.outs[n], +n === m || (m === 5 && +n === 5));
+      fade(this, this.inp, m < 5); fade(this, this.inpDim, m === 5);
+      this.list = this.lists[m]; this.t0 = performance.now(); this.kern.visible = m > 0;
+      const mode = $('#s8mode'), cnt = $('#s8count'), n = IN.length, tot = NI*NJ*NK;
+      const txt = [
+        ['입력: 활성 복셀 ' + n + ' / ' + tot, '활성 비율 ' + (n/tot*100).toFixed(0) + '%'],
+        ['Dense conv', `계산 위치 ${tot} / ${tot} · 출력 전부 채워짐`],
+        ['Sparse conv (1층)', `활성 ${n} → ${D1.length} (표면이 두꺼워짐)`],
+        ['Sparse conv (2층)', `활성 ${n} → ${D1.length} → ${D2.length}`],
+        ['SubM conv', `계산 위치 ${n} · 몇 층을 쌓아도 ${n}`],
+        ['Sparse conv, stride 2', `${NI}×${NJ}×${NK} → ${NI/2}×${NJ/2}×${NK/2} · 활성 ${coarse.length}`]
+      ][m];
+      mode.textContent = txt[0]; cnt.textContent = txt[1];
+    },
+    update(t){
+      if (!this.list || !this.list.length) return;
+      const per = this.list.length > 150 ? 45 : 230;
+      const i = reduced ? 0 : Math.floor(Math.max(0, t - this.t0) / per) % this.list.length;
+      const p = pos(...this.list[i]); this.kern.position.set(p[0], p[1], p[2]);
+    }
+  };
+})();
+
+/* ============================================================
+   S10 backbone: the same car voxelized at each stage
+   ============================================================ */
+const STAGES3 = [
+  {n:'conv_input + conv1', vx:.075, vz:.2, c:16, sub:'칸 7.5 cm · 원래 해상도'},
+  {n:'conv2', vx:.15, vz:.4, c:32, sub:'칸 15 cm · 1/2'},
+  {n:'conv3', vx:.3, vz:.8, c:64, sub:'칸 30 cm · 1/4'},
+  {n:'conv4', vx:.6, vz:1.6, c:128, sub:'칸 60 cm · 1/8'},
+  {n:'extra_conv', vx:.6, vz:4, c:128, sub:'높이 2층으로 압축'}
+];
+D3.s10 = {
+  host:'#v3-s10', cam:{r:10.5, phi:1.05, theta:.75, tx:.6, ty:.9, tz:-.6}, spinRate:.035,
+  build(S){
+    lights(S); S.add(gridH(14, 14, .2));
+    const cols = [tok('--teal'), lerpHex(tok('--teal'), tok('--violet'), .5), tok('--violet'), tok('--violet'), tok('--heat')];
+    this.st = STAGES3.map((s, i) => {
+      const g = new THREE.Group();
+      const cells = voxelize(SHAPES.all, s.vx, s.vz).map(([a,b,k]) => {
+        const lo = Math.max(0, k*s.vz - 3.2), hi = Math.min(2.6, (k+1)*s.vz - 3.2);
+        if (hi <= lo) return null;
+        return [(a+.5)*s.vx, (lo+hi)/2, -(b+.5)*s.vx, s.vx*.9, (hi-lo)*.94, s.vx*.9];
+      }).filter(Boolean);
+      g.add(inst(cells, cols[i], 1));
+      const bar = new THREE.Group(), n = s.c / 8;
+      for (let q = 0; q < n; q++){ const m = new THREE.Mesh(new THREE.BoxGeometry(.32, .2, .32), new THREE.MeshLambertMaterial({color:cols[i]})); m.position.set(-2.6, .12 + q*.24, 2.4); bar.add(m); }
+      bar.add(label(`칸 하나의 특징 = ${s.c}개 숫자`, {pos:new THREE.Vector3(-2.2, .5 + n*.24, 2.4), size:.3}));
+      g.add(bar);
+      g.add(label(`${s.n} · ${s.sub}`, {pos:new THREE.Vector3(.4, 3.3, -.8), size:.42, bold:true}));
+      S.add(g); fade(this, g, i === 0);
+      return g;
+    });
+  },
+  step(k){
+    const idx = k < 2 ? 0 : Math.min(4, k - 2);
+    this.st.forEach((g, i) => fade(this, g, i === idx));
+    $$('#s10strip > span').forEach((e, i) => e.classList.toggle('strip-on', i === idx));
+  }
+};
+
+/* ============================================================
+   S11 BEV: two height layers merge into one column per cell
+   ============================================================ */
+D3.s11 = {
+  host:'#v3-s11', cam:{r:17, phi:1.0, theta:.5, tx:.5, ty:.9, tz:-.5}, spinRate:.03,
+  build(S){
+    lights(S);
+    const cells = voxelize(SHAPES.all, .6, 4), occ = new Set(cells.map(c => c.join()));
+    const teal = tok('--teal'), vio = tok('--violet'), pan = tok('--panel2'), ink = tok('--ink');
+    const L0 = [], L1 = [], E0 = [], E1 = [];
+    for (let i = -6; i <= 7; i++) for (let j = -4; j <= 4; j++){
+      const x = i + .5, z = -(j + .5);
+      if (occ.has([i,j,0].join())) L0.push([x, .45, z, .92, .9, .92]); else E0.push([x, .03, z, .96, .06, .96]);
+      if (occ.has([i,j,1].join())) L1.push([x, .45, z, .92, .9, .92]); else E1.push([x, .03, z, .96, .06, .96]);
+    }
+    this.l0 = inst(L0, teal, 1); S.add(this.l0);
+    this.e0 = inst(E0, pan, .9); S.add(this.e0);
+    this.up = new THREE.Group(); this.up.position.y = 1.5;
+    this.up.add(inst(L1, vio, 1)); this.e1 = inst(E1, pan, .9); this.up.add(this.e1);
+    this.upLab = label('z = 1층 · 128채널', {pos:new THREE.Vector3(-7.8, .5, 0), size:.42, color:vio}); this.up.add(this.upLab);
+    S.add(this.up);
+    this.lab0 = label('z = 0층 · 128채널', {pos:new THREE.Vector3(-7.8, .45, 0), size:.42, color:teal}); S.add(this.lab0);
+    this.col = wireBox(1.02, 1.82, 1.02, ink); this.col.position.set(.5, .91, -.5); S.add(this.col);
+    this.merged = label('칸 (y, x) 하나 = 256채널 벡터', {pos:new THREE.Vector3(.5, 2.7, -.5), size:.45, bold:true}); S.add(this.merged);
+    fade(this, this.e0, false); fade(this, this.e1, false); fade(this, this.col, false); fade(this, this.merged, false);
+    this.goalY = 1.5;
+  },
+  step(k){
+    fade(this, this.e0, k >= 2); fade(this, this.e1, k >= 2);
+    this.goalY = k >= 3 ? .9 : 1.5;
+    fade(this, this.col, k >= 3); fade(this, this.merged, k >= 3);
+  },
+  update(t, dt){ this.up.position.y += (this.goalY - this.up.position.y) * (reduced ? 1 : 1 - Math.exp(-dt * 3)); }
+};
+
+/* ============================================================
+   S12 Neck: feature-map plates in 3D
+   ============================================================ */
+D3.s12 = {
+  host:'#v3-s12', cam:{r:24, phi:.95, theta:.05, tx:-.7, ty:0, tz:.2}, spinRate:.02,
+  build(S){
+    lights(S);
+    const B = BEVG(), vio = tok('--violet'), teal = tok('--teal'), heat = tok('--heat'), ink = tok('--ink'), pan = tok('--panel2');
+    const P = [
+      {pos:[-8.5,0,0], s:3.2, ch:256, arr:B.occ, n:180, c:vio, lab:'BEV 입력 · 256×180²', st:0},
+      {pos:[-3.5,0,-2.8], s:3.2, ch:128, arr:B.b1, n:180, c:teal, lab:'Block 0 · 128×180²', st:2},
+      {pos:[1.5,0,-2.8], s:3.2, ch:256, arr:B.b1, n:180, c:teal, lab:'1×1 conv · 256×180²', st:2},
+      {pos:[-3.5,0,2.8], s:1.6, ch:256, arr:B.d2, n:90, c:heat, lab:'Block 1 · 256×90²', st:3, near:true},
+      {pos:[1.5,0,2.8], s:3.2, ch:256, arr:B.d2, n:90, c:heat, lab:'Deconv · 256×180²', st:3, near:true},
+      {pos:[7,0,0], s:3.2, ch:512, arr:B.mix, n:180, c:vio, lab:'Concat · 512×180²', st:4}
+    ];
+    this.groups = {};
+    P.forEach(p => {
+      const t = p.ch / 512 * 1.1, g = new THREE.Group();
+      const side = new THREE.MeshLambertMaterial({color:p.c, transparent:true, opacity:.55});
+      const top = new THREE.MeshLambertMaterial({map:bevTex(p.arr, p.n, p.c, p.near)});
+      const m = new THREE.Mesh(new THREE.BoxGeometry(p.s, t, p.s), [side, side, top, side, side, side]);
+      m.position.set(p.pos[0], t/2, p.pos[2]); g.add(m);
+      g.add(label(p.lab, {pos:new THREE.Vector3(p.pos[0], t + .75, p.pos[2]), size:.42}));
+      p.top = t;
+      S.add(g); (this.groups[p.st] = this.groups[p.st] || []).push(g);
+    });
+    const a = (i, j, st) => {
+      const A = P[i], Bp = P[j];
+      const from = new THREE.Vector3(A.pos[0] + A.s/2 + .1, A.top/2, A.pos[2]);
+      const to = new THREE.Vector3(Bp.pos[0] - Bp.s/2 - .15, Bp.top/2, Bp.pos[2]);
+      const g = arrow(from, to, ink, .35, .2); S.add(g); (this.groups[st] = this.groups[st] || []).push(g);
+    };
+    a(0,1,2); a(1,2,2); a(3,4,3); a(2,5,4); a(4,5,4);
+    const d = arrow(new THREE.Vector3(-3.5, .2, -1.1), new THREE.Vector3(-3.5, .2, 1.9), ink, .35, .2); S.add(d); this.groups[3].push(d);
+    // receptive fields on the concat plate
+    const cp = P[5], cx = cp.pos[0] - cp.s/2 + 110.5/180*cp.s, cz = cp.pos[2] + cp.s/2 - 95.5/180*cp.s, y = cp.top + .02;
+    const sq = (n, color) => { const h = n/180*cp.s/2; return line([new THREE.Vector3(cx-h,y,cz-h), new THREE.Vector3(cx+h,y,cz-h), new THREE.Vector3(cx+h,y,cz+h), new THREE.Vector3(cx-h,y,cz+h), new THREE.Vector3(cx-h,y,cz-h)], color); };
+    this.rf = new THREE.Group();
+    this.rf.add(sq(13, teal)); this.rf.add(sq(35, heat)); this.rf.add(sq(1, ink));
+    this.rf.add(label('Block0 경로 ≈ 13칸 (7.8 m)', {pos:new THREE.Vector3(cx, y + .5, cz - .55), size:.22, color:teal}));
+    this.rf.add(label('Block1 경로 ≈ 35칸 (21 m)', {pos:new THREE.Vector3(cx, y + .5, cz + .55), size:.22, color:heat}));
+    S.add(this.rf); this.rfCenter = [cx, y, cz];
+    for (const st in this.groups) this.groups[st].forEach(g => fade(this, g, +st === 0));
+    fade(this, this.rf, false);
+  },
+  step(k){
+    for (const st in this.groups) this.groups[st].forEach(g => fade(this, g, k >= +st));
+    fade(this, this.rf, k >= 6);
+    const c = this.rfCenter;
+    V3.view(k >= 6 ? {r:3.4, tx:c[0], ty:c[1], tz:c[2], phi:.7} : {r:24, tx:-.7, ty:0, tz:.2, phi:.95});
+  }
+};
+
+/* ============================================================
+   S13 Head: one BEV cell and its tower of 70 output channels
+   ============================================================ */
+D3.s13 = {
+  host:'#v3-s13', cam:{r:12, phi:1.0, theta:.55, tx:.6, ty:1.6, tz:0}, spinRate:.03,
+  build(S){
+    lights(S);
+    const B = BEVG(), vio = tok('--violet'), heat = tok('--heat'), teal = tok('--teal'), rose = tok('--rose'), ink = tok('--ink');
+    const side = new THREE.MeshLambertMaterial({color:vio, transparent:true, opacity:.55});
+    this.plate = new THREE.Mesh(new THREE.BoxGeometry(6, 1.2, 6), [side, side, new THREE.MeshLambertMaterial({map:bevTex(B.mix, 180, vio)}), side, side, side]);
+    S.add(this.plate); this.th = 1.2; this.thGoal = 1.2;
+    this.cx = -3 + 110.5/180*6; this.cz = 3 - 95.5/180*6;
+    this.cell = wireBox(.3, .02, .3, heat); S.add(this.cell);
+    this.plLab = label('Neck 출력 512×180² · 선택한 한 칸 (확대 표시)', {pos:new THREE.Vector3(0, 0, 3.6), size:.3}); S.add(this.plLab);
+    this.q = new THREE.Group();
+    [['여기가 중심인가?', -1.4, 1.2], ['어떤 클래스?', 1.4, 1.5], ['크기·방향은?', -1.2, 2.3], ['속도는?', 1.3, 2.5]].forEach(([t, dx, dy]) => this.q.add(label(t, {pos:new THREE.Vector3(this.cx + dx, dy, this.cz), size:.3, color:heat})));
+    S.add(this.q);
+    this.shared = label('shared conv 3×3 → 64채널', {pos:new THREE.Vector3(-2.2, .7, 3.2), size:.3, color:teal}); S.add(this.shared);
+    const groups = [['승용차', 11], ['트럭·공사차량', 12], ['버스·트레일러', 12], ['방호벽', 11], ['오토바이·자전거', 12], ['보행자·콘', 12]];
+    const gc = [heat, teal, vio, rose, lerpHex(heat, vio, .5), lerpHex(teal, vio, .5)];
+    this.tower = new THREE.Group(); let y = .15; const sc = .055;
+    groups.forEach(([n, ch], i) => {
+      const h = ch * sc, m = new THREE.Mesh(new THREE.BoxGeometry(.5, h - .02, .5), new THREE.MeshLambertMaterial({color:gc[i]}));
+      m.position.set(this.cx, y + h/2, this.cz); this.tower.add(m);
+      this.tower.add(label(`task ${i+1} · ${n} · ${ch}ch`, {pos:new THREE.Vector3(this.cx - 1.55, y + h/2, this.cz), size:.22}));
+      y += h;
+    });
+    this.topY = y;
+    S.add(this.tower);
+    this.brk = new THREE.Group();
+    const heads = [['hm', 1, '중심 확률'], ['reg', 2, '칸 안 오프셋'], ['height', 1, 'z'], ['dim', 3, 'log(w, l, h)'], ['rot', 2, 'sin, cos'], ['vel', 2, 'vx, vy']];
+    let by = .3; const bx = this.cx + 1.6;
+    heads.forEach(([n, ch, d], i) => {
+      const h = ch * .2, m = new THREE.Mesh(new THREE.BoxGeometry(.7, h - .03, .5), new THREE.MeshLambertMaterial({color: i === 0 ? heat : lerpHex(teal, tok('--panel2'), i*.1)}));
+      m.position.set(bx, by + h/2, this.cz); this.brk.add(m);
+      this.brk.add(label(`${n} ${ch} · ${d}`, {pos:new THREE.Vector3(bx + 1.25, by + h/2, this.cz), size:.2}));
+      by += h;
+    });
+    this.brk.add(line([new THREE.Vector3(this.cx + .25, .15 + 11*sc/2, this.cz), new THREE.Vector3(bx - .35, by/2, this.cz)], ink, {dash:.08}));
+    this.brk.add(label('task 1 (승용차) 확대', {pos:new THREE.Vector3(bx, by + .3, this.cz), size:.22, color:heat}));
+    S.add(this.brk);
+    this.sum = label('출력 36개 = 6 task × 6 head · 채널 합 70', {pos:new THREE.Vector3(this.cx, y + .6, this.cz), size:.3, bold:true}); S.add(this.sum);
+    [this.q, this.shared, this.tower, this.brk, this.sum].forEach(g => fade(this, g, false));
+  },
+  step(k){
+    fade(this, this.q, k === 1 || k === 2); fade(this, this.shared, k >= 2); fade(this, this.tower, k >= 3); fade(this, this.brk, k >= 4); fade(this, this.sum, k >= 5);
+    this.thGoal = k >= 2 ? .15 : 1.2;
+    V3.view(k >= 4 ? {r:8.5, tx:this.cx + .8, ty:2.1, tz:this.cz} : k >= 3 ? {r:8, tx:this.cx, ty:1.5, tz:this.cz} : {r:12, tx:.6, ty:1.2, tz:0});
+  },
+  update(t, dt){
+    this.th += (this.thGoal - this.th) * (reduced ? 1 : 1 - Math.exp(-dt * 3));
+    this.plate.scale.y = this.th / 1.2; this.plate.position.y = this.th / 2;
+    this.cell.position.set(this.cx, this.th + .02, this.cz);
+  }
+};
+
+/* ============================================================
+   S14 heatmap as 3D terrain
+   ============================================================ */
+D3.s14 = {
+  host:'#v3-s14', cam:{r:40, phi:.88, theta:.5, ty:1}, spinRate:.025,
+  H: 4.5, task: 0, grow: 0, growGoal: 0,
+  build(S){
+    lights(S);
+    const n = 180, P = new Float32Array(n*n*3), Cc = new Float32Array(n*n*3), idx = [];
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++){ const i = r*n + c; P[i*3] = c*.2 - 17.9; P[i*3+2] = -(r*.2 - 17.9); }
+    for (let r = 0; r < n-1; r++) for (let c = 0; c < n-1; c++){ const a = r*n+c, b = a+1, d = a+n, e = d+1; idx.push(a, d, b, b, d, e); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('color', new THREE.BufferAttribute(Cc, 3)); g.setIndex(idx);
+    this.geo = g;
+    this.mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide})); S.add(this.mesh);
+    this.base = col3('--panel2'); this.hc = col3('--heat');
+    S.add(ego(1.2));
+    const rose = tok('--rose');
+    this.th = new THREE.Group();
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(36, 36), new THREE.MeshBasicMaterial({color:rose, transparent:true, opacity:.14, side:THREE.DoubleSide, depthWrite:false}));
+    pl.rotation.x = -Math.PI/2; pl.position.y = .1*this.H; this.th.add(pl);
+    const ed = wireBox(36, .001, 36, rose, .8); ed.position.y = .1*this.H; this.th.add(ed);
+    this.th.add(label('점수 0.1 기준선 — 뚫고 올라온 곳 = 후보', {pos:new THREE.Vector3(0, .1*this.H + 1.2, 14), size:.9, color:rose}));
+    S.add(this.th);
+    const px = 110*.2 - 17.9, pz = -(95*.2 - 17.9);
+    this.peak = new THREE.Group();
+    this.peak.add(label('승용차 중심 · 0.91', {pos:new THREE.Vector3(px, .91*this.H + 1.3, pz), size:.8, color:tok('--heat'), bold:true}));
+    this.peak.add(ring(px, .05, pz, 1.1, tok('--ink'), .8));
+    S.add(this.peak); this.peakPos = [px, pz];
+    fade(this, this.th, false); fade(this, this.peak, false);
+    this.setH();
+  },
+  setH(){
+    const n = 180, P = this.geo.attributes.position.array, Cc = this.geo.attributes.color.array, m = HEAT[this.task], c = new THREE.Color();
+    for (let i = 0; i < n*n; i++){
+      const v = m[i]; P[i*3+1] = v * this.H * this.grow;
+      c.copy(this.base).lerp(this.hc, Math.min(1, Math.pow(v, .7) * 1.15 * Math.max(this.grow, .001)));
+      Cc[i*3] = c.r; Cc[i*3+1] = c.g; Cc[i*3+2] = c.b;
+    }
+    this.geo.attributes.position.needsUpdate = true; this.geo.attributes.color.needsUpdate = true;
+    this.geo.computeVertexNormals();
+  },
+  setTask(i){ this.task = i; if (this.geo){ this.setH(); fade(this, this.peak, this.k >= 3 && i === 0); } },
+  step(k){
+    this.k = k; this.growGoal = k >= 1 ? 1 : 0;
+    fade(this, this.th, k >= 4); fade(this, this.peak, k >= 3 && this.task === 0);
+    const [px, pz] = this.peakPos;
+    V3.view(k === 3 ? {r:14, tx:px, ty:2, tz:pz, phi:.95} : {r:40, tx:0, ty:1, tz:0, phi:.88});
+  },
+  update(t, dt){
+    if (Math.abs(this.grow - this.growGoal) > .002){ this.grow += (this.growGoal - this.grow) * (reduced ? 1 : 1 - Math.exp(-dt * 2.5)); this.setH(); }
+  }
+};
+
+/* ============================================================
+   S15 regression: rebuild the 3D box from one cell
+   ============================================================ */
+D3.s15 = {
+  host:'#v3-s15', cam:{r:3, phi:.75, theta:.35, tx:.3, ty:0, tz:-.3}, spinRate:.02,
+  build(S){
+    lights(S); S.add(gridH(7.2, 12, .4));
+    const heat = tok('--heat'), teal = tok('--teal'), rose = tok('--rose'), ink = tok('--ink'), vio = tok('--violet');
+    const cell = new THREE.Mesh(new THREE.PlaneGeometry(.6, .6), new THREE.MeshBasicMaterial({color:heat, transparent:true, opacity:.35, side:THREE.DoubleSide}));
+    cell.rotation.x = -Math.PI/2; cell.position.set(.3, .005, -.3); S.add(cell);
+    const o = sphere(.035, ink); S.add(o);
+    S.add(label('칸 (110, 95) 모서리', {pos:new THREE.Vector3(-.2, .12, .25), size:.09}));
+    const C0 = {x:.222, y:.372}, yaw = .524, cs = Math.cos(yaw), sn = Math.sin(yaw), c = new THREE.Color(), list = [];
+    SHAPES.car.forEach(([x,y,z], i) => { if (i % 3) return; c.set(zColor(z + G)); list.push([C0.x + x*cs - y*sn, z, -(C0.y + x*sn + y*cs), c.r, c.g, c.b, .55]); });
+    S.add(points(list, .035));
+    this.g = [];
+    let g = new THREE.Group();
+    g.add(arrow(new THREE.Vector3(0, .02, 0), new THREE.Vector3(.222, .02, 0), teal, .05, .03));
+    g.add(arrow(new THREE.Vector3(.222, .02, 0), new THREE.Vector3(.222, .02, -.372), teal, .05, .03));
+    const tc = sphere(.03, rose); tc.position.set(.222, .02, -.372); g.add(tc);
+    g.add(label('Δx = 0.37칸', {pos:new THREE.Vector3(.11, .09, .08), size:.07, color:teal}));
+    g.add(label('Δy = 0.62칸', {pos:new THREE.Vector3(.4, .09, -.2), size:.07, color:teal}));
+    this.g[1] = g;
+    g = new THREE.Group();
+    g.add(arrow(new THREE.Vector3(.222, 0, -.372), new THREE.Vector3(.222, .77, -.372), heat, .12, .07));
+    g.add(label('z = −1.03 m (센서 기준 박스 중심)', {pos:new THREE.Vector3(.222, 1.0, -.372), size:.16, color:heat}));
+    this.g[2] = g;
+    const B = {x:C0.x, y:C0.y, yaw, l:4.62, w:1.94, h:1.54};
+    g = new THREE.Group(); g.add(box3(B, teal, .12));
+    g.add(label('l = e^1.53 = 4.62 m', {pos:T3(C0.x - .64, C0.y + 1.1, 1.9), size:.3}));
+    g.add(label('w = e^0.66 = 1.94 m', {pos:T3(C0.x + 2.9, C0.y + 1.7, .5), size:.3}));
+    g.add(label('h = e^0.43 = 1.54 m', {pos:T3(C0.x + 3.3, C0.y - .2, .77), size:.3}));
+    this.g[3] = g;
+    g = new THREE.Group();
+    const Cv = new THREE.Vector3(C0.x, .04, -C0.y);
+    g.add(line([Cv, Cv.clone().add(new THREE.Vector3(2.8, 0, 0))], ink, {dash:.1, op:.8}));
+    g.add(arrow(Cv, Cv.clone().add(new THREE.Vector3(3.4*cs, 0, -3.4*sn)), ink, .25, .14));
+    g.add(ring(C0.x, .04, -C0.y, 1.9, heat, 1, 0, yaw));
+    g.add(label('θ = atan2(0.50, 0.866) = 30°', {pos:new THREE.Vector3(C0.x + 2.6, .4, -C0.y - .8), size:.3, color:heat}));
+    this.g[4] = g;
+    g = new THREE.Group();
+    const top = new THREE.Vector3(C0.x, 1.7, -C0.y), v = new THREE.Vector3(3.2, 0, -.4).normalize().multiplyScalar(2.3);
+    g.add(arrow(top, top.clone().add(v), heat, .3, .16));
+    g.add(label('v = (3.2, 0.4) m/s', {pos:top.clone().add(v).add(new THREE.Vector3(0, .4, 0)), size:.3, color:heat}));
+    this.g[5] = g;
+    g = new THREE.Group();
+    g.add(label('칸 하나 = [Δx, Δy, z, log w, log l, log h, sin, cos, vx, vy]', {pos:new THREE.Vector3(C0.x, 3.2, -C0.y), size:.3, bold:true}));
+    g.add(label('= [0.37, 0.62, −1.03, 0.66, 1.53, 0.43, 0.50, 0.87, 3.2, 0.4]', {pos:new THREE.Vector3(C0.x, 2.7, -C0.y), size:.3, color:vio}));
+    this.g[6] = g;
+    this.g.forEach(x => { if (x){ S.add(x); fade(this, x, false); } });
+  },
+  step(k){
+    this.g.forEach((x, i) => { if (x) fade(this, x, k >= i); });
+    const v = [{r:3, tx:.3, ty:0, tz:-.3, phi:.75}, {r:1.6, tx:.2, ty:0, tz:-.2, phi:.55}, {r:4, tx:.2, ty:.4, tz:-.3, phi:1.1}, {r:9, tx:.3, ty:.8, tz:-.4, phi:.95}, {r:8.5, tx:.8, ty:.5, tz:-.6, phi:.6}, {r:9, tx:.8, ty:1, tz:-.5, phi:.95}, {r:10, tx:.5, ty:1.3, tz:-.4, phi:1.05}][k];
+    V3.view(v);
+  }
+};
+
+/* ============================================================
+   S16 gaussian target as 3D bars
+   ============================================================ */
+D3.s16 = {
+  host:'#v3-s16', cam:{r:15, phi:.95, theta:.6, tx:.5, ty:.4, tz:-.5}, spinRate:.03,
+  build(S){
+    lights(S);
+    const heat = tok('--heat'), teal = tok('--teal'), ink = tok('--ink'), mut = tok('--muted'), pan = tok('--panel2');
+    const seg = [];
+    for (let x = -8; x <= 8; x++) seg.push(new THREE.Vector3(x, 0, 4), new THREE.Vector3(x, 0, -5));
+    for (let y = -4; y <= 5; y++) seg.push(new THREE.Vector3(-8, 0, -y), new THREE.Vector3(8, 0, -y));
+    S.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg), new THREE.LineBasicMaterial({color:mut, transparent:true, opacity:.35})));
+    S.add(label('1칸 = 0.6 m', {pos:new THREE.Vector3(-7, .3, 4.6), size:.4, bg:false, color:mut}));
+    const cx = .37, cy = .62, L = 7.7, W = 3.23, a = .524;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    const corner = [[L/2, W/2], [-L/2, W/2], [-L/2, -W/2], [L/2, -W/2], [L/2, W/2]].map(([u,v]) => new THREE.Vector3(cx + u*cs - v*sn, .03, -(cy + u*sn + v*cs)));
+    S.add(line(corner, teal));
+    const shp = new THREE.Shape(corner.slice(0,4).map(p => new THREE.Vector2(p.x, -p.z)));
+    const fill = new THREE.Mesh(new THREE.ShapeGeometry(shp), new THREE.MeshBasicMaterial({color:teal, transparent:true, opacity:.1, side:THREE.DoubleSide, depthWrite:false}));
+    fill.rotation.x = -Math.PI/2; fill.position.y = .02; S.add(fill);
+    S.add(label('정답 박스 (승용차 1.94 × 4.62 m)', {pos:new THREE.Vector3(-3.2, .4, 3.4), size:.42, color:teal}));
+    const dot = sphere(.12, tok('--rose')); dot.position.set(cx, .06, -cy); S.add(dot);
+    this.c1 = new THREE.Mesh(new THREE.BoxGeometry(.98, .04, .98), new THREE.MeshLambertMaterial({color:heat})); this.c1.position.set(.5, .03, -.5); S.add(this.c1);
+    this.bars = new THREE.Group(); const sig = 5/6;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++){
+      const v = Math.exp(-(dx*dx + dy*dy) / (2*sig*sig)); if (v < .005) continue;
+      const h = 3.2 * v, m = new THREE.Mesh(new THREE.BoxGeometry(.82, h, .82), new THREE.MeshLambertMaterial({color: lerpHex(pan, heat, Math.min(1, .25 + v))}));
+      m.position.set(dx + .5, h/2, -(dy + .5)); this.bars.add(m);
+    }
+    S.add(this.bars); this.bars.scale.y = .001; this.gy = 0;
+    this.rg = new THREE.Group(); this.rg.add(ring(.5, .04, -.5, 2.5, heat, 1)); this.rg.add(label('r = 2칸', {pos:new THREE.Vector3(3.4, .4, -.5), size:.45, color:heat}));
+    S.add(this.rg);
+    this.vals = new THREE.Group();
+    [['1.00', 0, 0, 3.2], ['0.49', 1, 0, 1.57], ['0.24', 1, 1, .76], ['0.06', 2, 0, .18]].forEach(([t, dx, dy, h]) => this.vals.add(label(t, {pos:new THREE.Vector3(dx + .5, h + .35, -(dy + .5)), size:.38})));
+    S.add(this.vals);
+    this.reg = label('회귀 정답 10개 값은 이 칸에만 기록', {pos:new THREE.Vector3(.5, 4.3, -.5), size:.42, bold:true}); S.add(this.reg);
+    [this.c1, this.rg, this.vals, this.reg].forEach(g => fade(this, g, false));
+  },
+  step(k){
+    fade(this, this.c1, k >= 1); this.gy = k >= 2 ? 1 : .001;
+    fade(this, this.rg, k >= 3); fade(this, this.vals, k >= 4); fade(this, this.reg, k >= 5);
+  },
+  update(t, dt){ this.bars.scale.y += (this.gy - this.bars.scale.y) * (reduced ? 1 : 1 - Math.exp(-dt * 3)); this.bars.visible = this.bars.scale.y > .01; }
+};
+
+/* ============================================================
+   S18 post-processing in 3D: candidates, boxes, rotated NMS
+   ============================================================ */
+D3.s18 = {
+  host:'#v3-s18', cam:{r:50, phi:.85, theta:.4}, spinRate:.025,
+  build(S){
+    lights(S); S.add(points(cloudList(.45), .08)); S.add(ego());
+    const heat = tok('--heat'), rose = tok('--rose'), ink = tok('--ink');
+    this.cols = inst(CANDS.map(c => { const x = (c.cell[0] + .5)*.6 - 54, y = (c.cell[1] + .5)*.6 - 54, h = c.score*3; return [x, h/2, -y, .4, h, .4]; }), heat, .9);
+    S.add(this.cols);
+    this.cb = CANDS.map(c => {
+      const g = new THREE.BoxGeometry(c.l, 1.5, c.w);
+      const m = new THREE.LineBasicMaterial({color:heat, transparent:true, opacity:.35 + .6*c.score});
+      const l = new THREE.LineSegments(new THREE.EdgesGeometry(g), m);
+      l.position.set(c.x, .75, -c.y); l.rotation.y = c.yaw; S.add(l); return l;
+    });
+    this.fin = new THREE.Group();
+    CANDS.forEach(c => { if (!c.keep) return; this.fin.add(box3({x:c.x, y:c.y, yaw:c.yaw, l:c.l, w:c.w, h:1.6}, heat, .22)); this.fin.add(label(`${c.cls} ${c.score.toFixed(2)}`, {pos:new THREE.Vector3(c.x, 2.6, -c.y), size:.62})); });
+    S.add(this.fin);
+    this.heat = heat; this.rose = rose;
+    fade(this, this.cols, false); this.cb.forEach(b => fade(this, b, false)); fade(this, this.fin, false);
+  },
+  step(k){
+    this.k = k; this.t0 = performance.now();
+    fade(this, this.cols, k === 1);
+    this.cb.forEach((b, i) => {
+      const c = CANDS[i];
+      b.material.color.set(k === 3 && !c.keep ? this.rose : this.heat);
+      fade(this, b, k === 2 || (k === 3 && (c.keep || reduced === false)));
+    });
+    fade(this, this.fin, k >= 4);
+    V3.view(k >= 2 ? {r:36, phi:.8} : {r:50, phi:.85});
+  },
+  update(t){
+    if (this.k === 3 && t - this.t0 > 900) this.cb.forEach((b, i) => { if (!CANDS[i].keep) fade(this, b, false); });
+  }
+};
+
+/* ============================================================
+   S4 pipeline map (with icons)
+   ============================================================ */
+hooks.s4 = {
+  init(){
+    const g = $('#s4nodes'), b = $('#s4bands');
+    const N = [
+      ['점 구름','[N, 5]','센서가 본 세상 그대로'],
+      ['복셀화','[V,5] + [V,4]','점을 격자 칸에 정리'],
+      ['3D Sparse 백본','[128,2,180,180]','빈칸 빼고 3D 모양 이해'],
+      ['BEV 변환','[256,180,180]','위에서 본 지도로 펴기'],
+      ['Neck','[512,180,180]','작은·큰 물체 문맥 결합'],
+      ['CenterHead','6 × [C,180,180]','칸마다 중심·속성 예측'],
+      ['디코드 + NMS','[K, 11]','박스로 복원, 중복 제거']
+    ];
+    const icon = (i, x, y, p) => {
+      const r = rng(40 + i);
+      if (i === 0) for (let k = 0; k < 22; k++) S('circle', {cx:x + r()*40, cy:y + r()*30, r:1.6, class:'f-teal'}, p);
+      if (i === 1) for (let a = 0; a < 4; a++) for (let c = 0; c < 3; c++) S('rect', {x:x + a*10, y:y + c*10, width:9, height:9, class: r() < .4 ? 'f-teal' : 'f-none s-grid'}, p);
+      if (i === 2){ S('path', {d:`M${x+6} ${y+10}L${x+18} ${y+3}L${x+38} ${y+3}L${x+26} ${y+10}Z`, class:'f-violet-s s-violet'}, p); S('path', {d:`M${x+26} ${y+10}L${x+38} ${y+3}L${x+38} ${y+23}L${x+26} ${y+30}Z`, class:'f-violet s-violet', opacity:.6}, p); S('rect', {x:x+6, y:y+10, width:20, height:20, class:'f-violet-s s-violet'}, p); }
+      if (i === 3){ S('path', {d:`M${x} ${y+22}L${x+14} ${y+8}L${x+42} ${y+8}L${x+28} ${y+22}Z`, class:'f-violet-s s-violet'}, p); S('path', {d:`M${x+7} ${y+15}H${x+35}M${x+14} ${y+22}L${x+28} ${y+8}`, class:'s-violet'}, p); }
+      if (i === 4){ S('path', {d:`M${x} ${y+28}L${x+12} ${y+18}L${x+40} ${y+18}L${x+28} ${y+28}Z`, class:'f-teal-s s-teal'}, p); S('path', {d:`M${x} ${y+14}L${x+12} ${y+4}L${x+40} ${y+4}L${x+28} ${y+14}Z`, class:'f-heat-s s-heat'}, p); }
+      if (i === 5){ let d = `M${x} ${y+30}`; for (let k = 0; k <= 40; k++){ const t = (k - 20)/6; d += `L${x+k} ${y + 30 - 26*Math.exp(-t*t/2)}`; } S('path', {d, class:'f-heat-s s-heat'}, p); }
+      if (i === 6){ S('rect', {x:x+4, y:y+8, width:22, height:12, class:'f-none s-heat', transform:`rotate(-20 ${x+15} ${y+14})`}, p); S('rect', {x:x+22, y:y+16, width:16, height:10, class:'f-none s-heat', transform:`rotate(15 ${x+30} ${y+21})`}, p); }
+    };
+    N.forEach((n,i) => {
+      const x = 5 + i*172, grp = S('g', {class:'frag', 'data-s': i+1}, g);
+      S('rect', {x, y:20, width:150, height:128, rx:5, class: i===5 ? 'f-heat-s s-heat' : 'f-bg s-line', 'stroke-width':1.5}, grp);
+      S('text', {x:x+12, y:44, style:'font-size:11px', class:'mono mut'}, grp, '0' + (i+1));
+      icon(i, x + 100, 28, grp);
+      S('text', {x:x+12, y:78, style:'font-weight:700;font-size:15px'}, grp, n[0]);
+      S('text', {x:x+12, y:100, class:'mono violet', style:'font-size:11.5px'}, grp, n[1]);
+      S('text', {x:x+12, y:132, style:'font-size:12.5px'}, grp, n[2]);
+      if (i < 6) S('path', {d:`M${x+151} 84H${x+170}`, class:'s-ink', 'stroke-width':1.5, 'marker-end':'url(#ah-ink)'}, grp);
+    });
+    const B = [
+      [0,0,'CPU · 입력','f-panel2','mut',''],
+      [1,1,'CUDA 커널','f-teal-s','teal','1.36 ms'],
+      [2,3,'libspconv','f-violet-s','violet','22.3 ms'],
+      [4,5,'TensorRT','f-heat-s','heat','11.3 ms'],
+      [6,6,'CUDA + CPU','f-teal-s','teal','4.4 ms']
+    ];
+    B.forEach(([a,z,l,f,tc,ms]) => {
+      const x = 5 + a*172, wd = (z-a)*172 + 150;
+      S('rect', {x, y:170, width:wd, height:34, rx:4, class:f}, b);
+      S('text', {x:x+10, y:192, class:tc, style:'font-weight:600'}, b, l);
+      if (ms) S('text', {x:x+wd-10, y:192, class:'mono ' + tc, 'text-anchor':'end'}, b, ms);
+    });
+    S('text', {x:5, y:236, class:'mut', style:'font-size:12px'}, b, 'Orin 평균 지연 합계 ≈ 40 ms (≈ 23~25 FPS) · 3D 백본이 절반 이상');
+  }
+};
+
+/* ============================================================
+   S10 stage strip + residual block
+   ============================================================ */
+hooks.s10 = {
+  init(){
+    const strip = $('#s10strip');
+    STAGES3.forEach((s, i) => { const e = document.createElement('span'); e.className = 'chip' + (i === 0 ? ' strip-on' : ''); e.innerHTML = `<b>${s.n}</b> · <span class="m">C ${s.c}</span>`; strip.appendChild(e); });
+    const svg = $('#s10svg');
+    const bx = [['SubM','f-violet-s'],['BN','f-panel2'],['ReLU','f-panel2'],['SubM','f-violet-s'],['BN','f-panel2']];
+    let rx = 60; const ry = 26;
+    S('text', {x:10, y:ry+20, class:'mono'}, svg, 'x');
+    S('path', {d:`M24 ${ry+15}H${rx-4}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, svg);
+    bx.forEach(([t,c]) => { S('rect', {x:rx, y:ry, width:62, height:30, rx:4, class:c + ' s-line'}, svg); S('text', {x:rx+31, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, svg, t); S('path', {d:`M${rx+62} ${ry+15}H${rx+78}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, svg); rx += 80; });
+    S('circle', {cx:rx+12, cy:ry+15, r:12, class:'f-heat-s s-heat'}, svg); S('text', {x:rx+12, y:ry+20, 'text-anchor':'middle', class:'heat', style:'font-weight:700'}, svg, '+');
+    S('path', {d:`M${rx+24} ${ry+15}H${rx+44}`, class:'s-ink', 'marker-end':'url(#ah-ink)'}, svg);
+    S('rect', {x:rx+46, y:ry, width:62, height:30, rx:4, class:'f-panel2 s-line'}, svg); S('text', {x:rx+77, y:ry+20, 'text-anchor':'middle', style:'font-size:12px'}, svg, 'ReLU');
+    S('path', {d:`M40 ${ry+15}V${ry-14}H${rx+12}V${ry+1}`, class:'f-none s-heat', 'stroke-width':1.8, 'marker-end':'url(#ah-heat)'}, svg);
+    S('text', {x:(40+rx)/2, y:ry-18, 'text-anchor':'middle', class:'heat', style:'font-size:12px'}, svg, '지름길 (identity) · 잔차 블록');
+  }
+};
+
+/* ============================================================
+   S11 channel interleave bars
+   ============================================================ */
+hooks.s11 = (function(){
+  const cellsZ = [];
+  const W = 34, X0 = 150, Y1 = 8, Y0 = 48, XF = 106, YF = 112;
+  return {
+    init(){
+      const svg = $('#s11svg');
+      S('text', {x:X0 + 8*W + 10, y:Y1+20, class:'mono violet'}, svg, 'z=1 : 128ch');
+      S('text', {x:X0 + 8*W + 10, y:Y0+20, class:'mono teal'}, svg, 'z=0 : 128ch');
+      S('text', {x:8, y:Y1+20, class:'mut', style:'font-size:11px'}, svg, '한 칸의 기둥');
+      S('text', {x:8, y:Y1+36, class:'mut', style:'font-size:11px'}, svg, '(128개 중 8개)');
+      const lab = S('g', {class:'frag', 'data-s':3}, svg);
+      S('text', {x:XF, y:YF-8, class:'mono heat'}, lab, 'reshape → 256ch : 채널 번호 = c·2 + d');
+      for (let i = 0; i < 16; i++) S('text', {x:XF + i*W + W/2, y:YF+48, 'text-anchor':'middle', class:'mono mut', style:'font-size:10.5px'}, lab, String(i));
+      for (let d = 0; d < 2; d++) for (let c = 0; c < 8; c++){
+        const g = S('g', {class:'mv'}, svg);
+        S('rect', {x:0, y:0, width:W-3, height:30, rx:3, class: d ? 'f-violet' : 'f-teal', opacity:.9}, g);
+        S('text', {x:(W-3)/2, y:20, 'text-anchor':'middle', class:'mono', style:'font-size:10.5px;fill:var(--panel)'}, g, 'c' + c);
+        cellsZ.push({g, c, d});
+      }
+    },
+    step(k){
+      cellsZ.forEach(({g,c,d}) => {
+        const x = k >= 3 ? XF + (c*2 + d)*W : X0 + c*W, y = k >= 3 ? YF : (d ? Y1 : Y0);
+        g.style.transform = `translate(${x}px, ${y}px)`;
+      });
+    }
+  };
+})();
+
+/* ============================================================
+   S14 task buttons + peak table
+   ============================================================ */
+hooks.s14 = {
+  init(){
+    const b = $('#s14btns');
+    TASKS.forEach((t,i) => {
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.className = i === 0 ? 'sel' : '';
+      x.addEventListener('click', e => { e.stopPropagation(); $$('button', b).forEach((y,j) => y.classList.toggle('sel', j === i)); D3.s14.setTask(i); });
+      b.appendChild(x);
+    });
+    const tb = $('#s14tab'), sig = 5/6; let html = '';
+    for (let dy = 2; dy >= -2; dy--){
+      html += '<tr>';
+      for (let dx = -2; dx <= 2; dx++){
+        const v = 0.91*Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+        html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v.toFixed(2)}</td>`;
+      }
+      html += '</tr>';
+    }
+    tb.innerHTML = html;
+  }
+};
+
+/* ============================================================
+   S15 side panels: log scale and the unit circle
+   ============================================================ */
+hooks.s15 = {
+  init(){
+    const svg = $('#s15svg');
+    const gB = S('g', {class:'frag', 'data-s':3}, svg);
+    S('rect', {x:0, y:0, width:350, height:168, rx:5, class:'f-bg s-line'}, gB);
+    S('text', {x:12, y:20, style:'font-weight:700;font-size:12.5px'}, gB, '크기를 log로 예측하는 이유');
+    const items = [['콘',0.4],['보행자',0.7],['승용차',4.6],['버스',11]];
+    S('text', {x:12, y:42, class:'mut', style:'font-size:11px'}, gB, '길이 그대로: 작은 물체가 왼쪽에 몰림');
+    S('path', {d:'M20 58H330', class:'s-mut'}, gB);
+    items.forEach(([n,v]) => S('circle', {cx:20 + v/12*310, cy:58, r:4.5, class:'f-teal'}, gB));
+    S('text', {x:12, y:92, class:'mut', style:'font-size:11px'}, gB, 'log(길이): 고르게 퍼짐 → "몇 배 틀렸나"로 공평');
+    S('path', {d:'M20 118H330', class:'s-mut'}, gB);
+    const lx = v => 20 + (Math.log(v) - Math.log(.3)) / (Math.log(15) - Math.log(.3)) * 310;
+    items.forEach(([n,v],i) => { const x = lx(v); S('circle', {cx:x, cy:118, r:4.5, class:'f-heat'}, gB); S('text', {x, y: i%2 ? 140 : 108, 'text-anchor':'middle', style:'font-size:11px'}, gB, n); });
+    S('text', {x:12, y:160, class:'mut', style:'font-size:10.5px'}, gB, 'exp()로 되돌리면 항상 양수');
+    const gC = S('g', {class:'frag', 'data-s':4}, svg);
+    S('rect', {x:370, y:0, width:350, height:168, rx:5, class:'f-bg s-line'}, gC);
+    S('text', {x:382, y:20, style:'font-weight:700;font-size:12.5px'}, gC, '방향을 (sin, cos)로 예측하는 이유');
+    const ox = 450, oy = 96, R = 56;
+    S('circle', {cx:ox, cy:oy, r:R, class:'f-none s-mut'}, gC);
+    S('path', {d:`M${ox-R-8} ${oy}H${ox+R+8}M${ox} ${oy-R-8}V${oy+R+8}`, class:'s-grid'}, gC);
+    const a = Math.PI/6, qx = ox + R*Math.cos(a), qy = oy - R*Math.sin(a);
+    S('path', {d:`M${ox} ${oy}L${qx} ${qy}`, class:'s-heat', 'stroke-width':2}, gC);
+    S('circle', {cx:qx, cy:qy, r:4.5, class:'f-heat'}, gC);
+    S('text', {x:qx+6, y:qy-4, class:'mono heat', style:'font-size:10.5px'}, gC, '30°');
+    const b1 = Math.PI*179/180, b2 = -b1;
+    S('circle', {cx:ox + R*Math.cos(b1), cy:oy - R*Math.sin(b1), r:4, class:'f-violet'}, gC);
+    S('circle', {cx:ox + R*Math.cos(b2), cy:oy - R*Math.sin(b2), r:4, class:'f-violet'}, gC);
+    S('text', {x:530, y:62, class:'violet', style:'font-size:11.5px'}, gC, '+179° 와 −179°');
+    S('text', {x:530, y:80, style:'font-size:11.5px'}, gC, '숫자로는 358 차이');
+    S('text', {x:530, y:98, style:'font-size:11.5px'}, gC, '원 위에선 바로 옆');
+    S('text', {x:530, y:130, class:'mono', style:'font-size:11px'}, gC, 'θ = atan2(sin, cos)');
+  }
+};
+
+/* ============================================================
+   S16 gaussian table
+   ============================================================ */
+hooks.s16 = {
+  init(){
+    const tb = $('#s16tab'), sig = 5/6; let html = '';
+    for (let dy = 2; dy >= -2; dy--){
+      html += '<tr>';
+      for (let dx = -2; dx <= 2; dx++){
+        const v = Math.exp(-(dx*dx+dy*dy)/(2*sig*sig));
+        html += `<td class="n" style="background:color-mix(in srgb, var(--heat) ${Math.round(v*80)}%, transparent);padding:3px 7px">${v < 0.005 ? '0.00' : v.toFixed(2)}</td>`;
+      }
+      html += '</tr>';
+    }
+    tb.innerHTML = html;
+  }
+};
+
+/* ============================================================
    boot
    ============================================================ */
 const start = (() => { const h = (location.hash || '').slice(1); const i = slides.findIndex(s => s.id === h); return i >= 0 ? i : 0; })();
 slides[0].classList.add('active');
 fit();
 go(start, 0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => V3.retheme(step));
 })();
 </script>
+
 </body>
 </html>
