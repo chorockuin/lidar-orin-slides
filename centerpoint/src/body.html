@@ -900,43 +900,53 @@ b' = (b − μ) · γ/√(σ²+ε) + β</div></div>
 </section>
 
 <!-- ============================ 23. 정리 ============================ -->
-<section class="slide" id="s22" data-stage="" data-title="정리" data-steps="2">
+<section class="slide" id="s22" data-stage="" data-title="정리" data-steps="10">
   <header><span class="eyebrow">14 · 정리</span><h2>한 장으로 보는 CenterPoint</h2></header>
-  <div style="display:flex;flex-direction:column;gap:16px;flex:1;min-height:0">
-    <table class="t">
-      <thead><tr><th>단계</th><th>푸는 문제</th><th>핵심 발상</th><th>모양</th></tr></thead>
-      <tbody>
-        <tr><td>입력</td><td>한 번의 스캔은 듬성듬성, 속도를 모름</td><td>10 sweep 누적 + Δt 채널</td><td class="m">[N, 5]</td></tr>
-        <tr><td>복셀화</td><td>점은 순서도 격자도 없음</td><td>칸에 담고 평균 → 규칙적 격자</td><td class="m">[V, 5] + [V, 4]</td></tr>
-        <tr><td>3D Sparse 백본</td><td>99.87%가 빈칸</td><td>있는 칸만 계산 (SubM), 해상도↓ 채널↑</td><td class="m">[128, 2, 180, 180]</td></tr>
-        <tr><td>BEV</td><td>3D는 무겁고 다루기 어렵다</td><td>도로 위 물체는 겹치지 않는다 → 높이를 채널로</td><td class="m">[256, 180, 180]</td></tr>
-        <tr><td>Neck</td><td>작은 물체와 큰 물체</td><td>두 해상도의 특징을 이어 붙임</td><td class="m">[512, 180, 180]</td></tr>
-        <tr><td>Head</td><td>회전된 박스를 anchor로 찾기 어렵다</td><td>물체 = 중심점, 속성은 회귀 (offset, log, sin/cos)</td><td class="m">6 × [C, 180, 180]</td></tr>
-        <tr><td>학습</td><td>정답 칸은 극소수</td><td>가우시안 정답 + Focal loss</td><td class="m">—</td></tr>
-        <tr><td>후처리</td><td>물체마다 후보가 여럿</td><td>점수 0.1 → 디코드 → 회전 NMS 0.2</td><td class="m">[K, 11]</td></tr>
-        <tr><td>Orin</td><td>실시간 (≤ 100 ms)</td><td>CUDA 커널 + libspconv + TensorRT, FP16/INT8</td><td class="m">≈ 40 ms</td></tr>
-      </tbody>
-    </table>
-    <div class="frag" data-s="1">
-      <div class="gloss">
-        <div><b>포인트 클라우드</b>LiDAR가 측정한 3D 점들의 집합. 순서가 없다.</div>
-        <div><b>Sweep</b>LiDAR가 한 바퀴 돌며 얻은 한 번의 스캔.</div>
-        <div><b>복셀 (voxel)</b>3D 격자의 한 칸. 여기선 7.5 × 7.5 × 20 cm.</div>
-        <div><b>희소 (sparse)</b>대부분이 0/빈칸인 데이터. 값이 있는 곳만 저장한다.</div>
-        <div><b>SubM Conv</b>출력 위치를 입력 활성 칸으로 고정한 희소 합성곱.</div>
-        <div><b>Rulebook</b>희소 합성곱의 (입력, 출력) 짝 목록. 커널 오프셋마다 하나.</div>
-        <div><b>BEV</b>Bird's-Eye View. 위에서 내려다본 2D 지도. 한 칸 0.6 m.</div>
-        <div><b>수용 영역</b>출력 한 칸이 입력에서 "볼 수 있는" 범위.</div>
-        <div><b>Heatmap</b>칸마다 "물체 중심일 확률"을 담은 지도.</div>
-        <div><b>Focal loss</b>쉬운 칸의 loss를 깎아 어려운 칸에 집중하게 하는 loss.</div>
-        <div><b>NMS</b>겹치는 중복 박스 중 점수가 가장 높은 것만 남기는 과정.</div>
-        <div><b>TensorRT</b>NVIDIA의 추론 최적화 엔진. 층 합치기, 커널 선택, 저정밀도.</div>
-      </div>
+  <div class="cols">
+    <div class="vis">
+      <div class="v3" id="v3-s22" aria-label="CenterPoint 전체 단계를 한 줄로 늘어놓은 3D 장면"></div>
+      <div class="legend"><span>같은 차 한 대와 보행자 한 명이 단계마다 모양을 바꾼다 (칸 크기·높이는 과장)</span></div>
+    </div>
+    <div class="txt">
+      <p class="q">지금까지 본 여덟 단계를 한 화면에 늘어놓으면, 점은 어떤 모양을 거쳐 박스가 되나?</p>
+      <table class="t" id="s22tab">
+        <thead><tr><th>단계</th><th>핵심 발상</th><th>모양</th></tr></thead>
+        <tbody>
+          <tr><td>입력</td><td>10 sweep 누적 + Δt 채널</td><td class="m">[N, 5]</td></tr>
+          <tr><td>복셀화</td><td>칸에 담고 평균 → 규칙적 격자</td><td class="m">[V, 5]</td></tr>
+          <tr><td>3D Sparse 백본</td><td>있는 칸만 계산(SubM), 해상도↓ 채널↑</td><td class="m">[128, 2, 180, 180]</td></tr>
+          <tr><td>BEV</td><td>높이 2층을 채널로 눕힌 지도</td><td class="m">[256, 180, 180]</td></tr>
+          <tr><td>Neck</td><td>두 해상도의 특징을 이어 붙임</td><td class="m">[512, 180, 180]</td></tr>
+          <tr><td>Heatmap</td><td>물체 = 중심점, 봉우리로 찾기</td><td class="m">6 × [C, 180, 180]</td></tr>
+          <tr><td>회귀</td><td>offset · log 크기 · sin/cos · 속도</td><td class="m">10 값 / 칸</td></tr>
+          <tr><td>NMS</td><td>점수 0.1 → 복원 → 회전 NMS 0.2</td><td class="m">[K, 11]</td></tr>
+          <tr><td>학습</td><td>가우시안 정답 + Focal loss</td><td class="m">—</td></tr>
+          <tr><td>Orin</td><td>CUDA 커널 + libspconv + TensorRT, FP16/INT8</td><td class="m">≈ 40 ms</td></tr>
+        </tbody>
+      </table>
+      <p class="idea">3D는 빈칸을 건너뛰는 합성곱으로 충실히 읽고, 물체는 "중심점 하나"로 찾는다. 그래서 회전·추적에 강하다.</p>
     </div>
   </div>
   <div class="notes">
     <h3>발표용 한 줄 요약</h3>
     <p>"CenterPoint는 흩어진 LiDAR 점을 격자에 담아, 빈칸은 건너뛰는 3D 합성곱으로 모양을 이해하고, 위에서 본 지도로 펼친 뒤, 물체를 '중심점'으로 찾아 그 자리에서 크기·방향·속도를 읽어내는 모델입니다. Orin에서는 이를 CUDA 커널, libspconv, TensorRT로 나눠 약 40 ms에 실행합니다."</p>
+    <h3>이 장의 3D 그림</h3>
+    <p>파이프라인의 여덟 단계를 왼쪽에서 오른쪽으로 한 줄로 늘어놓았습니다. 모두 같은 작은 장면(차 한 대, 보행자 한 명)이라, 한 물체가 단계마다 어떤 모양이 되는지 한눈에 비교할 수 있습니다. 클릭하면 카메라가 한 단계씩 다가가고 오른쪽 표의 같은 행이 강조되며, 마지막에 다시 전체를 보여 줍니다. 칸 크기와 판 두께는 보기 좋게 과장했습니다.</p>
+    <h3>용어집</h3>
+    <ul>
+      <li><b>포인트 클라우드</b> — LiDAR가 측정한 3D 점들의 집합. 순서가 없다.</li>
+      <li><b>Sweep</b> — LiDAR가 한 바퀴 돌며 얻은 한 번의 스캔.</li>
+      <li><b>복셀 (voxel)</b> — 3D 격자의 한 칸. 여기선 7.5 × 7.5 × 20 cm.</li>
+      <li><b>희소 (sparse)</b> — 대부분이 0/빈칸인 데이터. 값이 있는 곳만 저장한다.</li>
+      <li><b>SubM Conv</b> — 출력 위치를 입력 활성 칸으로 고정한 희소 합성곱.</li>
+      <li><b>Rulebook</b> — 희소 합성곱의 (입력, 출력) 짝 목록. 커널 오프셋마다 하나.</li>
+      <li><b>BEV</b> — Bird's-Eye View. 위에서 내려다본 2D 지도. 한 칸 0.6 m.</li>
+      <li><b>수용 영역</b> — 출력 한 칸이 입력에서 "볼 수 있는" 범위.</li>
+      <li><b>Heatmap</b> — 칸마다 "물체 중심일 확률"을 담은 지도.</li>
+      <li><b>Focal loss</b> — 쉬운 칸의 loss를 깎아 어려운 칸에 집중하게 하는 loss.</li>
+      <li><b>NMS</b> — 겹치는 중복 박스 중 점수가 가장 높은 것만 남기는 과정.</li>
+      <li><b>TensorRT</b> — NVIDIA의 추론 최적화 엔진. 층 합치기, 커널 선택, 저정밀도.</li>
+    </ul>
     <h3>더 읽을거리</h3>
     <ul>
       <li>Yin, Zhou, Krähenbühl. Center-based 3D Object Detection and Tracking. CVPR 2021.</li>
